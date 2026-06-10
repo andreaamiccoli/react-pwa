@@ -24,16 +24,17 @@
   --radius-lg:      22px;
 }
 
+/* Reset universale: tutto include border e padding nella larghezza */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-html, body, #root {
-  min-height: 100vh;
-  width: 100%;
+/* La pagina occupa esattamente la larghezza del dispositivo, niente di più */
+html {
   overflow-x: hidden;
+  width: 100%;
 }
 
 body {
@@ -41,32 +42,50 @@ body {
   background-color: var(--bg-main);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+  width: 100%;
+  /* Impedisce qualsiasi scroll orizzontale */
+  overflow-x: hidden;
   /* Safe area per notch iPhone/Android */
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+#root {
+  width: 100%;
+  min-height: 100vh;
+  background-color: var(--bg-main);
+}
+
 /* ============================================
    LAYOUT PRINCIPALE
+   Il contenitore è fluido al 100% della viewport,
+   con un massimo di 600px per schermi più grandi
    ============================================ */
 .app {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  /* Larghezza: 100% del viewport, mai oltre 600px */
+  width: 100%;
   max-width: 600px;
   margin: 0 auto;
+  /* Garantisce che i figli non possano uscire lateralmente */
+  overflow-x: hidden;
 }
 
 /* ============================================
    HEADER
    ============================================ */
 .app-header {
-  padding: 18px 20px 12px;
+  /* padding laterale % rispetto al genitore, non fisso */
+  padding: 18px 4% 12px;
   background: linear-gradient(180deg, rgba(15,23,42,1) 0%, rgba(15,23,42,0.95) 100%);
   position: sticky;
   top: 0;
   z-index: 100;
   border-bottom: 1px solid var(--border);
+  /* Si estende all'intera larghezza del contenitore */
+  width: 100%;
 }
 
 .app-title {
@@ -80,29 +99,37 @@ body {
 
 /* ============================================
    MENU GIORNI (Scroll Orizzontale)
+   Questo è L'UNICO elemento che scorre orizzontalmente.
+   Il contenitore .days-nav non tracima: tiene il suo overflow
+   circoscritto al solo .days-scroll interno.
    ============================================ */
 .days-nav {
   position: sticky;
-  top: 57px; /* altezza header */
+  top: 57px;
   z-index: 99;
   background: rgba(15, 23, 42, 0.97);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
   padding: 10px 0;
+  width: 100%;
+  /* Importante: il nav stesso NON deve tracimare */
+  overflow: hidden;
 }
 
 .days-scroll {
   display: flex;
   gap: 8px;
+  /* Solo questo elemento interno può scorrere orizzontalmente */
   overflow-x: auto;
+  overflow-y: hidden;
   padding: 4px 16px;
-  /* Nascondi la scrollbar su tutti i browser ma mantieni la funzionalità */
+  /* Nascondi la scrollbar visivamente */
   scrollbar-width: none;
   -ms-overflow-style: none;
-  /* Scroll smooth su touch */
   -webkit-overflow-scrolling: touch;
   scroll-snap-type: x mandatory;
+  /* Non usare width: 100% qui per non comprimere i bottoni */
 }
 
 .days-scroll::-webkit-scrollbar {
@@ -116,9 +143,9 @@ body {
   border: 1px solid var(--border);
   color: var(--text-secondary);
   font-family: var(--font);
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 500;
-  padding: 12px 24px;
+  padding: 11px 22px;
   border-radius: 100px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -141,13 +168,17 @@ body {
 
 /* ============================================
    CONTENUTO PRINCIPALE DEL GIORNO
+   Padding % per restare sempre proporzionato
    ============================================ */
 .day-content {
   flex: 1;
-  padding: 20px 16px 40px;
+  padding: 20px 4% 40px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  /* Assicura che tutti i figli rimangano nei limiti */
+  width: 100%;
+  min-width: 0;
 }
 
 /* Hero del giorno: titolo + descrizione */
@@ -155,9 +186,12 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 22px 20px;
+  padding: 22px 5%;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  /* Forza la larghezza entro il padre */
+  width: 100%;
+  min-width: 0;
 }
 
 .day-name {
@@ -168,12 +202,15 @@ body {
   -webkit-text-fill-color: transparent;
   margin-bottom: 10px;
   letter-spacing: -0.5px;
+  /* Previene overflow del testo */
+  word-break: break-word;
 }
 
 .day-description {
   font-size: 0.92rem;
   color: var(--text-secondary);
   line-height: 1.55;
+  word-break: break-word;
 }
 
 /* ============================================
@@ -182,14 +219,17 @@ body {
 .action-bar {
   display: flex;
   gap: 10px;
+  width: 100%;
+  min-width: 0;
 }
 
 .btn {
   flex: 1;
+  min-width: 0;
   font-family: var(--font);
   font-size: 0.92rem;
   font-weight: 600;
-  padding: 13px 20px;
+  padding: 13px 16px;
   border-radius: var(--radius-md);
   border: none;
   cursor: pointer;
@@ -229,7 +269,7 @@ body {
   color: var(--danger);
   border: 1px solid rgba(239, 68, 68, 0.25);
   flex: 0 0 auto;
-  padding: 13px 18px;
+  padding: 13px 16px;
 }
 
 .btn--cancel:hover {
@@ -244,16 +284,21 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 .meal-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 18px;
+  padding: 18px 5%;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  /* Resta dentro i limiti del genitore */
+  width: 100%;
+  min-width: 0;
 }
 
 .meal-card:hover {
@@ -271,6 +316,7 @@ body {
 .meal-icon {
   font-size: 1.3rem;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .meal-label {
@@ -279,13 +325,17 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--accent-light);
+  word-break: break-word;
 }
 
 .meal-content {
   font-size: 0.93rem;
   color: var(--text-primary);
   line-height: 1.6;
+  /* Mantiene i ritorni a capo ma evita overflow */
   white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 /* ============================================
@@ -302,7 +352,9 @@ body {
    ============================================ */
 .input-description,
 .input-meal {
+  /* Occupa tutta la larghezza disponibile senza mai uscire */
   width: 100%;
+  max-width: 100%;
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -311,6 +363,7 @@ body {
   font-size: 0.93rem;
   line-height: 1.6;
   padding: 12px 14px;
+  /* Consente ridimensionamento solo verticale */
   resize: vertical;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   outline: none;
