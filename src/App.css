@@ -407,6 +407,106 @@ body {
 }
 
 /* ============================================
+   INTEGRAZIONE CALENDARIO (Preset & Badge Ricette)
+   ============================================ */
+
+.presets-bar {
+  display: flex;
+  gap: 10px;
+  padding: 10px 4%;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  width: 100%;
+}
+
+.presets-dropdown-wrapper {
+  flex: 1;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.meal-edit-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attached-recipe-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+}
+
+.badge-icon {
+  margin-right: 8px;
+}
+
+.badge-text {
+  flex: 1;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.badge-close {
+  background: transparent;
+  border: none;
+  color: var(--danger);
+  font-weight: bold;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.badge-close:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.recipe-link {
+  display: inline-block;
+  background: rgba(99, 102, 241, 0.15);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: all 0.2s;
+  color: var(--text-primary);
+}
+
+.recipe-link:hover {
+  background: rgba(99, 102, 241, 0.25);
+  transform: translateY(-1px);
+}
+
+.recipe-link-icon {
+  margin-right: 6px;
+}
+
+.meal-text-note {
+  font-size: 0.93rem;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+
+.selector-card {
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+
+.selector-card:hover {
+  border-color: var(--accent);
+  background: var(--bg-card-hover);
+}
+
+/* ============================================
    RECIPE PAGE
    ============================================ */
 .recipe-page {

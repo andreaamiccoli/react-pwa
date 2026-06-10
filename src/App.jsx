@@ -30,13 +30,40 @@ const buildDefaultData = () => {
   return data
 }
 
-// --- Helper: leggi da localStorage, oppure usa i default ---
+// Helper: normalizza i dati vecchi per supportare recipeId e text
+const normalizeMeals = (data) => {
+  const normalized = {}
+  for (const day of DAYS) {
+    normalized[day] = { description: data[day]?.description || '', meals: {} }
+    for (const m of MEALS) {
+      const val = data[day]?.meals?.[m.key]
+      if (typeof val === 'string') {
+        normalized[day].meals[m.key] = { text: val, recipeId: null, recipeName: null }
+      } else if (val && typeof val === 'object') {
+        normalized[day].meals[m.key] = { text: val.text || '', recipeId: val.recipeId || null, recipeName: val.recipeName || null }
+      } else {
+        normalized[day].meals[m.key] = { text: '', recipeId: null, recipeName: null }
+      }
+    }
+  }
+  return normalized
+}
+
+// Helper: leggi da localStorage
 const loadData = () => {
   try {
     const saved = localStorage.getItem('dietData')
+    if (saved) return normalizeMeals(JSON.parse(saved))
+  } catch (e) { }
+  return normalizeMeals(buildDefaultData())
+}
+
+const loadPresets = () => {
+  try {
+    const saved = localStorage.getItem('presetsData')
     if (saved) return JSON.parse(saved)
-  } catch (e) { /* ignora errori di parsing */ }
-  return buildDefaultData()
+  } catch(e) {}
+  return []
 }
 
 // --- Componente principale ---
@@ -44,15 +71,33 @@ export default function App() {
   const [view, setView]               = useState('calendar')
   const [selectedDay, setSelectedDay] = useState(DAYS[0])
   const [dietData, setDietData]       = useState(loadData)
+  const [presets, setPresets]         = useState(loadPresets)
+  
   const [isEditing, setIsEditing]     = useState(false)
   const [tempData, setTempData]       = useState(null)
+  
+  // Stato per il RecipeSelector modale
+  const [selectingMealKey, setSelectingMealKey] = useState(null)
+  const [allRecipes, setAllRecipes]   = useState([])
 
-  // Salva automaticamente in localStorage ogni volta che dietData cambia
+  // Salva automaticamente dietData e presets
   useEffect(() => {
     localStorage.setItem('dietData', JSON.stringify(dietData))
   }, [dietData])
 
-  // Quando si cambia giorno, esci dalla modalità modifica
+  useEffect(() => {
+    localStorage.setItem('presetsData', JSON.stringify(presets))
+  }, [presets])
+
+  // Ricarica le ricette quando si torna al calendario o si apre il selettore
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('recipeData')
+      if (saved) setAllRecipes(JSON.parse(saved))
+    } catch(e) {}
+  }, [view, selectingMealKey])
+
+  // --- Funzioni UI ---
   const handleSelectDay = (day) => {
     if (isEditing) {
       const confirm = window.confirm('Hai modifiche non salvate. Vuoi uscire senza salvare?')
@@ -63,42 +108,86 @@ export default function App() {
     setSelectedDay(day)
   }
 
-  // Avvia la modifica: clona i dati del giorno in tempData
   const handleEdit = () => {
     setTempData(JSON.parse(JSON.stringify(dietData[selectedDay])))
     setIsEditing(true)
   }
 
-  // Salva le modifiche da tempData in dietData
   const handleSave = () => {
     setDietData(prev => ({ ...prev, [selectedDay]: tempData }))
     setIsEditing(false)
     setTempData(null)
   }
 
-  // Annulla le modifiche
   const handleCancel = () => {
     setIsEditing(false)
     setTempData(null)
   }
 
-  // Aggiorna un campo di tempData durante la modifica
   const handleChange = (field, value) => {
     setTempData(prev => ({ ...prev, [field]: value }))
   }
 
-  const handleMealChange = (mealKey, value) => {
+  const handleMealChangeText = (mealKey, textValue) => {
     setTempData(prev => ({
       ...prev,
-      meals: { ...prev.meals, [mealKey]: value }
+      meals: { 
+        ...prev.meals, 
+        [mealKey]: { ...prev.meals[mealKey], text: textValue } 
+      }
     }))
+  }
+
+  const handleAssignRecipe = (recipe) => {
+    setTempData(prev => ({
+      ...prev,
+      meals: {
+        ...prev.meals,
+        [selectingMealKey]: { ...prev.meals[selectingMealKey], recipeId: recipe.id, recipeName: recipe.name }
+      }
+    }))
+    setSelectingMealKey(null)
+  }
+
+  const handleRemoveRecipe = (mealKey) => {
+    setTempData(prev => ({
+      ...prev,
+      meals: {
+        ...prev.meals,
+        [mealKey]: { ...prev.meals[mealKey], recipeId: null, recipeName: null }
+      }
+    }))
+  }
+
+  // --- Funzioni per Presets ---
+  const handleSavePreset = () => {
+    const name = window.prompt("Dai un nome a questa settimana (es. 'Massa', 'Scarico'):")
+    if (!name) return
+    setPresets(prev => [...prev, { id: Date.now().toString(), name, data: dietData }])
+    window.alert("Settimana salvata tra i Preset!")
+  }
+
+  const handleLoadPreset = (preset) => {
+    if (isEditing) {
+      if (!window.confirm("Hai modifiche non salvate. Vuoi scartarle e caricare la settimana preimpostata?")) return
+      setIsEditing(false)
+      setTempData(null)
+    } else {
+      if (!window.confirm(`Vuoi davvero sovrascrivere l'intera settimana corrente con il preset "${preset.name}"?`)) return
+    }
+    setDietData(preset.data)
+  }
+
+  const handleDeletePreset = (id) => {
+    if (window.confirm("Vuoi eliminare questo preset?")) {
+      setPresets(prev => prev.filter(p => p.id !== id))
+    }
   }
 
   const currentData = isEditing ? tempData : dietData[selectedDay]
 
   return (
     <div className="app">
-
       {/* ===== HEADER ===== */}
       <header className="app-header header-flex">
         <button 
@@ -112,7 +201,30 @@ export default function App() {
 
       {view === 'calendar' ? (
         <>
-          {/* ===== MENU GIORNI (orizzontale scorrevole) ===== */}
+          {/* ===== SETTIMANE PREIMPOSTATE ===== */}
+          <div className="presets-bar">
+            <button className="btn btn--edit small-py" onClick={handleSavePreset}>💾 Salva Settimana</button>
+            
+            {presets.length > 0 && (
+              <div className="presets-dropdown-wrapper">
+                <select 
+                  className="input-description" 
+                  onChange={(e) => {
+                    const selected = presets.find(p => p.id === e.target.value);
+                    if(selected) { handleLoadPreset(selected); e.target.value = ""; }
+                  }}
+                  defaultValue=""
+                >
+                  <option value="" disabled>Carica Settimana...</option>
+                  {presets.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* ===== MENU GIORNI ===== */}
           <nav className="days-nav">
             <div className="days-scroll">
               {DAYS.map(day => (
@@ -133,7 +245,6 @@ export default function App() {
             {/* Titolo e descrizione del giorno */}
             <div className="day-hero">
               <h2 className="day-name">{selectedDay}</h2>
-
               {isEditing ? (
                 <textarea
                   className="input-description"
@@ -171,24 +282,73 @@ export default function App() {
                   </div>
 
                   {isEditing ? (
-                    <textarea
-                      className="input-meal"
-                      placeholder={`Inserisci la ${meal.label.toLowerCase()}...`}
-                      value={currentData.meals[meal.key]}
-                      onChange={e => handleMealChange(meal.key, e.target.value)}
-                      rows={3}
-                    />
-                  ) : (
-                    <p className="meal-content">
-                      {currentData.meals[meal.key] || (
-                        <span className="placeholder-text">Non ancora pianificato</span>
+                    <div className="meal-edit-container">
+                      {/* Assegnazione Ricetta */}
+                      {currentData.meals[meal.key].recipeId ? (
+                        <div className="attached-recipe-badge">
+                          <span className="badge-icon">📖</span>
+                          <span className="badge-text">{currentData.meals[meal.key].recipeName}</span>
+                          <button className="badge-close" onClick={() => handleRemoveRecipe(meal.key)}>✕</button>
+                        </div>
+                      ) : (
+                        <button className="btn btn--edit small-py mb-2 w-full" onClick={() => setSelectingMealKey(meal.key)}>
+                          + Aggiungi dal Ricettario
+                        </button>
                       )}
-                    </p>
+                      
+                      <textarea
+                        className="input-meal"
+                        placeholder={`Note manuali per ${meal.label.toLowerCase()}...`}
+                        value={currentData.meals[meal.key].text || ''}
+                        onChange={e => handleMealChangeText(meal.key, e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                  ) : (
+                    <div className="meal-content">
+                      {currentData.meals[meal.key].recipeId && (
+                        <div className="recipe-link" onClick={() => setView('recipes')}>
+                          <span className="recipe-link-icon">📖</span> Apri ricetta: <strong>{currentData.meals[meal.key].recipeName}</strong>
+                        </div>
+                      )}
+                      
+                      {currentData.meals[meal.key].text ? (
+                        <p className="meal-text-note mt-2">{currentData.meals[meal.key].text}</p>
+                      ) : (
+                        !currentData.meals[meal.key].recipeId && <span className="placeholder-text">Non ancora pianificato</span>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
             </div>
           </main>
+
+          {/* Modal Selezione Ricetta */}
+          {selectingMealKey && (
+            <div className="recipe-modal-overlay">
+              <div className="recipe-modal day-content">
+                <h2 className="day-name">Scegli una Ricetta</h2>
+                <div className="modal-scroll">
+                  {allRecipes.length === 0 ? (
+                    <p className="placeholder-text">Nessuna ricetta salvata. Vai nel Ricettario per aggiungerne una.</p>
+                  ) : (
+                    <div className="recipes-grid">
+                      {allRecipes.map(r => (
+                        <div key={r.id} className="meal-card recipe-card selector-card" onClick={() => handleAssignRecipe(r)}>
+                          <h3 className="recipe-name">{r.name}</h3>
+                          <span className="recipe-badge">{r.dishType}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="action-bar mt-auto">
+                  <button className="btn btn--cancel" onClick={() => setSelectingMealKey(null)}>✕ Chiudi</button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <RecipePage />
