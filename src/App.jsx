@@ -99,7 +99,7 @@ export default function App() {
 
       {/* ===== HEADER ===== */}
       <header className="app-header">
-        <h1 className="app-title">🥗 Dieta Settimanale</h1>
+        <h1 className="app-title">Dieta Settimanale</h1>
       </header>
 
       {/* ===== MENU GIORNI (orizzontale scorrevole) ===== */}
