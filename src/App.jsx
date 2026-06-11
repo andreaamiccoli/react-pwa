@@ -3,6 +3,7 @@ import './App.css'
 import RecipePage from './RecipePage.jsx'
 import Drawer from './Drawer.jsx'
 import PresetsPage from './PresetsPage.jsx'
+import BackupPage from './BackupPage.jsx'
 import ToastContainer, { showToast } from './Toast.jsx'
 import ConfirmModal from './ConfirmModal.jsx'
 
@@ -193,7 +194,7 @@ export default function App() {
   }
 
   const currentData = isEditing ? tempData : dietData[selectedDay]
-  const viewTitle = view === 'calendar' ? 'Dieta Settimanale' : (view === 'recipes' ? 'Ricettario' : 'Preset');
+  const viewTitle = view === 'calendar' ? 'Dieta Settimanale' : (view === 'recipes' ? 'Ricettario' : (view === 'presets' ? 'Preset' : 'Impostazioni'));
   const recipeToView = viewingRecipe ? allRecipes.find(r => r.id === viewingRecipe) : null;
 
   return (
@@ -222,6 +223,10 @@ export default function App() {
           presets={presets} setPresets={setPresets} 
           currentDietData={dietData} onLoadPreset={handleLoadPresetReq} 
         />
+      )}
+
+      {view === 'backup' && (
+        <BackupPage />
       )}
 
       {view === 'recipes' && (

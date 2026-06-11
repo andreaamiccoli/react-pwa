@@ -33,6 +33,12 @@ export default function Drawer({ isOpen, onClose, currentView, setView }) {
           >
             💾 Preset Settimanali
           </button>
+          <button 
+            className={`drawer-item ${currentView === 'backup' ? 'active' : ''}`}
+            onClick={() => navigate('backup')}
+          >
+            ⚙️ Backup & Impostazioni
+          </button>
         </nav>
       </div>
     </>
