@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import RecipePage from './RecipePage.jsx'
+import Drawer from './Drawer.jsx'
+import PresetsPage from './PresetsPage.jsx'
+import ToastContainer, { showToast } from './Toast.jsx'
+import ConfirmModal from './ConfirmModal.jsx'
 
 // --- Dati di default per la prima apertura ---
 const DAYS = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
@@ -19,11 +23,7 @@ const buildDefaultData = () => {
     data[day] = {
       description: '',
       meals: {
-        colazione: '',
-        spuntino: '',
-        pranzo: '',
-        merenda: '',
-        cena: '',
+        colazione: '', spuntino: '', pranzo: '', merenda: '', cena: '',
       }
     }
   })
@@ -49,7 +49,6 @@ const normalizeMeals = (data) => {
   return normalized
 }
 
-// Helper: leggi da localStorage
 const loadData = () => {
   try {
     const saved = localStorage.getItem('dietData')
@@ -66,9 +65,10 @@ const loadPresets = () => {
   return []
 }
 
-// --- Componente principale ---
 export default function App() {
-  const [view, setView]               = useState('calendar')
+  const [view, setView]               = useState('calendar') // calendar | recipes | presets
+  const [drawerOpen, setDrawerOpen]   = useState(false)
+  
   const [selectedDay, setSelectedDay] = useState(DAYS[0])
   const [dietData, setDietData]       = useState(loadData)
   const [presets, setPresets]         = useState(loadPresets)
@@ -76,11 +76,14 @@ export default function App() {
   const [isEditing, setIsEditing]     = useState(false)
   const [tempData, setTempData]       = useState(null)
   
-  // Stato per il RecipeSelector modale
+  // Stato per Recipe Selector e Bottom Sheet
   const [selectingMealKey, setSelectingMealKey] = useState(null)
+  const [viewingRecipe, setViewingRecipe] = useState(null) // ID della ricetta da visualizzare nel bottom sheet
   const [allRecipes, setAllRecipes]   = useState([])
 
-  // Salva automaticamente dietData e presets
+  // Conferme Modali
+  const [confirmUnsavedChanges, setConfirmUnsavedChanges] = useState(null) // callback function se true
+
   useEffect(() => {
     localStorage.setItem('dietData', JSON.stringify(dietData))
   }, [dietData])
@@ -89,21 +92,35 @@ export default function App() {
     localStorage.setItem('presetsData', JSON.stringify(presets))
   }, [presets])
 
-  // Ricarica le ricette quando si torna al calendario o si apre il selettore
   useEffect(() => {
     try {
       const saved = localStorage.getItem('recipeData')
       if (saved) setAllRecipes(JSON.parse(saved))
     } catch(e) {}
-  }, [view, selectingMealKey])
+  }, [view, selectingMealKey, viewingRecipe])
 
-  // --- Funzioni UI ---
+  // --- Funzioni Navigazione ---
+  const handleNavChange = (newView) => {
+    if (isEditing && view === 'calendar' && newView !== 'calendar') {
+      setConfirmUnsavedChanges(() => () => {
+        setIsEditing(false);
+        setTempData(null);
+        setView(newView);
+      });
+      return;
+    }
+    setView(newView);
+  }
+
+  // --- Funzioni Calendario UI ---
   const handleSelectDay = (day) => {
     if (isEditing) {
-      const confirm = window.confirm('Hai modifiche non salvate. Vuoi uscire senza salvare?')
-      if (!confirm) return
-      setIsEditing(false)
-      setTempData(null)
+      setConfirmUnsavedChanges(() => () => {
+        setIsEditing(false);
+        setTempData(null);
+        setSelectedDay(day);
+      });
+      return;
     }
     setSelectedDay(day)
   }
@@ -117,6 +134,7 @@ export default function App() {
     setDietData(prev => ({ ...prev, [selectedDay]: tempData }))
     setIsEditing(false)
     setTempData(null)
+    showToast('Giorno salvato!', 'success')
   }
 
   const handleCancel = () => {
@@ -131,10 +149,7 @@ export default function App() {
   const handleMealChangeText = (mealKey, textValue) => {
     setTempData(prev => ({
       ...prev,
-      meals: { 
-        ...prev.meals, 
-        [mealKey]: { ...prev.meals[mealKey], text: textValue } 
-      }
+      meals: { ...prev.meals, [mealKey]: { ...prev.meals[mealKey], text: textValue } }
     }))
   }
 
@@ -159,71 +174,62 @@ export default function App() {
     }))
   }
 
-  // --- Funzioni per Presets ---
-  const handleSavePreset = () => {
-    const name = window.prompt("Dai un nome a questa settimana (es. 'Massa', 'Scarico'):")
-    if (!name) return
-    setPresets(prev => [...prev, { id: Date.now().toString(), name, data: dietData }])
-    window.alert("Settimana salvata tra i Preset!")
-  }
+  // Presets load handling (passed to PresetsPage)
+  const executePresetLoad = (presetData) => {
+    setDietData(presetData);
+    setView('calendar'); // torna al calendario se era in preset
+  };
 
-  const handleLoadPreset = (preset) => {
+  const handleLoadPresetReq = (presetData) => {
     if (isEditing) {
-      if (!window.confirm("Hai modifiche non salvate. Vuoi scartarle e caricare la settimana preimpostata?")) return
-      setIsEditing(false)
-      setTempData(null)
+      setConfirmUnsavedChanges(() => () => {
+        setIsEditing(false);
+        setTempData(null);
+        executePresetLoad(presetData);
+      });
     } else {
-      if (!window.confirm(`Vuoi davvero sovrascrivere l'intera settimana corrente con il preset "${preset.name}"?`)) return
-    }
-    setDietData(preset.data)
-  }
-
-  const handleDeletePreset = (id) => {
-    if (window.confirm("Vuoi eliminare questo preset?")) {
-      setPresets(prev => prev.filter(p => p.id !== id))
+      executePresetLoad(presetData);
     }
   }
 
   const currentData = isEditing ? tempData : dietData[selectedDay]
+  const viewTitle = view === 'calendar' ? 'Dieta Settimanale' : (view === 'recipes' ? 'Ricettario' : 'Preset');
+  const recipeToView = viewingRecipe ? allRecipes.find(r => r.id === viewingRecipe) : null;
 
   return (
     <div className="app">
-      {/* ===== HEADER ===== */}
-      <header className="app-header header-flex">
-        <button 
-          className="nav-btn" 
-          onClick={() => setView(view === 'calendar' ? 'recipes' : 'calendar')}
-        >
-          {view === 'calendar' ? '📖' : '📅'}
-        </button>
-        <h1 className="app-title">{view === 'calendar' ? 'Dieta Settimanale' : 'Ricettario'}</h1>
+      {/* ===== NOTIFICHE E NAV ===== */}
+      <ToastContainer />
+      <Drawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} currentView={view} setView={handleNavChange} />
+
+      {/* ===== HEADER GLOBALE ===== */}
+      <header className="app-header header-flex-3col">
+        <button className="nav-btn" onClick={() => setDrawerOpen(true)}>☰</button>
+        <h1 className="app-title">{viewTitle}</h1>
+        <div className="header-right-action">
+          {view === 'calendar' && !isEditing && (
+            <button className="nav-btn action-icon" onClick={handleEdit}>✏️</button>
+          )}
+          {view === 'calendar' && isEditing && (
+            <button className="nav-btn action-icon text-success" onClick={handleSave}>✓</button>
+          )}
+        </div>
       </header>
 
-      {view === 'calendar' ? (
-        <>
-          {/* ===== SETTIMANE PREIMPOSTATE ===== */}
-          <div className="presets-bar">
-            <button className="btn btn--edit small-py" onClick={handleSavePreset}>💾 Salva Settimana</button>
-            
-            {presets.length > 0 && (
-              <div className="presets-dropdown-wrapper">
-                <select 
-                  className="input-description" 
-                  onChange={(e) => {
-                    const selected = presets.find(p => p.id === e.target.value);
-                    if(selected) { handleLoadPreset(selected); e.target.value = ""; }
-                  }}
-                  defaultValue=""
-                >
-                  <option value="" disabled>Carica Settimana...</option>
-                  {presets.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
+      {/* ===== VIEWS ===== */}
+      {view === 'presets' && (
+        <PresetsPage 
+          presets={presets} setPresets={setPresets} 
+          currentDietData={dietData} onLoadPreset={handleLoadPresetReq} 
+        />
+      )}
 
+      {view === 'recipes' && (
+        <RecipePage />
+      )}
+
+      {view === 'calendar' && (
+        <>
           {/* ===== MENU GIORNI ===== */}
           <nav className="days-nav">
             <div className="days-scroll">
@@ -241,14 +247,12 @@ export default function App() {
 
           {/* ===== CONTENUTO DEL GIORNO ===== */}
           <main className="day-content">
-
-            {/* Titolo e descrizione del giorno */}
             <div className="day-hero">
               <h2 className="day-name">{selectedDay}</h2>
               {isEditing ? (
                 <textarea
                   className="input-description"
-                  placeholder="Aggiungi una nota per questo giorno... (es. Giorno di sgarro, Giorno di riposo...)"
+                  placeholder="Aggiungi una nota per questo giorno..."
                   value={currentData.description}
                   onChange={e => handleChange('description', e.target.value)}
                   rows={2}
@@ -260,19 +264,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Pulsanti Modifica / Salva / Annulla */}
-            <div className="action-bar">
-              {isEditing ? (
-                <>
-                  <button className="btn btn--save" onClick={handleSave}>✓ Salva</button>
-                  <button className="btn btn--cancel" onClick={handleCancel}>✕ Annulla</button>
-                </>
-              ) : (
-                <button className="btn btn--edit" onClick={handleEdit}>✏️ Modifica Giorno</button>
-              )}
-            </div>
-
-            {/* Lista dei pasti */}
             <div className="meals-list">
               {MEALS.map(meal => (
                 <div key={meal.key} className="meal-card">
@@ -283,7 +274,6 @@ export default function App() {
 
                   {isEditing ? (
                     <div className="meal-edit-container">
-                      {/* Assegnazione Ricetta */}
                       {currentData.meals[meal.key].recipeId ? (
                         <div className="attached-recipe-badge">
                           <span className="badge-icon">📖</span>
@@ -307,11 +297,10 @@ export default function App() {
                   ) : (
                     <div className="meal-content">
                       {currentData.meals[meal.key].recipeId && (
-                        <div className="recipe-link" onClick={() => setView('recipes')}>
+                        <div className="recipe-link" onClick={() => setViewingRecipe(currentData.meals[meal.key].recipeId)}>
                           <span className="recipe-link-icon">📖</span> Apri ricetta: <strong>{currentData.meals[meal.key].recipeName}</strong>
                         </div>
                       )}
-                      
                       {currentData.meals[meal.key].text ? (
                         <p className="meal-text-note mt-2">{currentData.meals[meal.key].text}</p>
                       ) : (
@@ -322,37 +311,101 @@ export default function App() {
                 </div>
               ))}
             </div>
-          </main>
 
-          {/* Modal Selezione Ricetta */}
-          {selectingMealKey && (
-            <div className="recipe-modal-overlay">
-              <div className="recipe-modal day-content">
-                <h2 className="day-name">Scegli una Ricetta</h2>
-                <div className="modal-scroll">
-                  {allRecipes.length === 0 ? (
-                    <p className="placeholder-text">Nessuna ricetta salvata. Vai nel Ricettario per aggiungerne una.</p>
-                  ) : (
-                    <div className="recipes-grid">
-                      {allRecipes.map(r => (
-                        <div key={r.id} className="meal-card recipe-card selector-card" onClick={() => handleAssignRecipe(r)}>
-                          <h3 className="recipe-name">{r.name}</h3>
-                          <span className="recipe-badge">{r.dishType}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="action-bar mt-auto">
-                  <button className="btn btn--cancel" onClick={() => setSelectingMealKey(null)}>✕ Chiudi</button>
-                </div>
+            {/* Pulsanti Save/Cancel Floating (se in edit) */}
+            {isEditing && (
+              <div className="floating-action-bar">
+                <button className="btn btn--cancel" onClick={handleCancel}>✕ Annulla</button>
+                <button className="btn btn--save" onClick={handleSave}>✓ Salva Giorno</button>
               </div>
-            </div>
-          )}
+            )}
+          </main>
         </>
-      ) : (
-        <RecipePage />
       )}
+
+      {/* ===== MODALS ===== */}
+      <ConfirmModal
+        isOpen={!!confirmUnsavedChanges}
+        title="Modifiche non salvate"
+        message="Hai delle modifiche in corso. Se continui andranno perse. Vuoi scartare le modifiche?"
+        confirmText="Scarta Modifiche"
+        onConfirm={() => {
+          confirmUnsavedChanges();
+          setConfirmUnsavedChanges(null);
+        }}
+        onCancel={() => setConfirmUnsavedChanges(null)}
+      />
+
+      {/* Selettore Ricetta Modal */}
+      {selectingMealKey && (
+        <div className="recipe-modal-overlay">
+          <div className="recipe-modal day-content">
+            <h2 className="day-name">Scegli una Ricetta</h2>
+            <div className="modal-scroll">
+              {allRecipes.length === 0 ? (
+                <p className="placeholder-text">Nessuna ricetta salvata. Vai nel Ricettario.</p>
+              ) : (
+                <div className="recipes-grid">
+                  {allRecipes.map(r => (
+                    <div key={r.id} className="meal-card recipe-card selector-card" onClick={() => handleAssignRecipe(r)}>
+                      <h3 className="recipe-name">{r.name}</h3>
+                      <span className="recipe-badge">{r.dishType}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="action-bar mt-auto">
+              <button className="btn btn--cancel" onClick={() => setSelectingMealKey(null)}>✕ Chiudi</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Sheet Ricetta */}
+      {viewingRecipe && (
+        <div className="bottom-sheet-overlay" onClick={() => setViewingRecipe(null)}>
+          <div className="bottom-sheet" onClick={e => e.stopPropagation()}>
+            <div className="bottom-sheet-drag-handle"></div>
+            {recipeToView ? (
+              <div className="bottom-sheet-content">
+                <h2 className="recipe-name mb-2">{recipeToView.name}</h2>
+                <span className="recipe-badge mb-3 inline-block">{recipeToView.dishType}</span>
+                
+                <div className="recipe-nutri mb-3">
+                  <span>🔥 {recipeToView.nutrition?.calories || 0} kcal</span>
+                  <span>🥩 {recipeToView.nutrition?.protein || 0}g P</span>
+                  <span>🍞 {recipeToView.nutrition?.carbs || 0}g C</span>
+                  <span>🥑 {recipeToView.nutrition?.fat || 0}g F</span>
+                </div>
+
+                {recipeToView.ingredients?.length > 0 && (
+                  <div className="mb-3">
+                    <h4 className="mb-2 text-accent">Ingredienti</h4>
+                    <ul className="ingredient-list">
+                      {recipeToView.ingredients.map((ing, i) => (
+                        <li key={i}><strong>{ing.name}</strong> <span className="text-secondary">{ing.quantity}</span></li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {recipeToView.instructions && (
+                  <div className="mb-3">
+                    <h4 className="mb-2 text-accent">Preparazione</h4>
+                    <p className="meal-text-note">{recipeToView.instructions}</p>
+                  </div>
+                )}
+                
+                <button className="btn btn--cancel w-full mt-3" onClick={() => setViewingRecipe(null)}>Chiudi</button>
+              </div>
+            ) : (
+              <p>Ricetta non trovata o eliminata.</p>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
