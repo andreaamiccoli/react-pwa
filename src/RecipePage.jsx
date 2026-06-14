@@ -25,6 +25,7 @@ export default function RecipePage() {
 
   // Modal stato (null = chiuso, object = editing)
   const [editingRecipe, setEditingRecipe] = useState(null);
+  const [showAiModal, setShowAiModal] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('recipeData', JSON.stringify(recipes));
@@ -64,6 +65,9 @@ export default function RecipePage() {
       <div className="recipe-toolbar">
         <button className="btn btn--edit" onClick={() => setShowFilters(!showFilters)}>
           {showFilters ? 'Nascondi Filtri' : 'Mostra Filtri'}
+        </button>
+        <button className="btn btn--edit" onClick={() => setShowAiModal(true)}>
+          ⚡ Importa con IA
         </button>
         <button className="btn btn--save" onClick={() => setEditingRecipe({
           name: '', meals: [], dishType: 'Altro', ingredients: [],
@@ -132,6 +136,13 @@ export default function RecipePage() {
           recipe={editingRecipe} 
           onSave={handleSaveRecipe} 
           onClose={() => setEditingRecipe(null)} 
+        />
+      )}
+
+      {showAiModal && (
+        <AiImportModal 
+          onClose={() => setShowAiModal(false)} 
+          onSuccess={(data) => setEditingRecipe(data)} 
         />
       )}
     </div>
@@ -215,6 +226,238 @@ function RecipeModal({ recipe, onSave, onClose }) {
         <div className="action-bar mt-auto">
           <button className="btn btn--save" onClick={() => onSave(formData)}>✓ Salva</button>
           <button className="btn btn--cancel" onClick={onClose}>✕ Annulla</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AiImportModal({ onClose, onSuccess }) {
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('geminiApiKey') || '');
+  const [tempKey, setTempKey] = useState('');
+  const [recipeText, setRecipeText] = useState('');
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveTempKey = () => {
+    if (!tempKey.trim()) return;
+    localStorage.setItem('geminiApiKey', tempKey.trim());
+    setApiKey(tempKey.trim());
+  };
+
+  const handleAnalyze = async () => {
+    if (!apiKey) {
+      setError("Inserisci una chiave API valida prima di procedere.");
+      return;
+    }
+    if (!recipeText.trim() && !imageFile) {
+      setError("Inserisci del testo o carica uno screenshot della ricetta.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      let parts = [];
+
+      if (recipeText.trim()) {
+        parts.push({ text: `Testo della ricetta:\n${recipeText}` });
+      }
+
+      if (imageFile && imagePreview) {
+        const base64Data = imagePreview.split(',')[1];
+        parts.push({
+          inlineData: {
+            mimeType: imageFile.type,
+            data: base64Data
+          }
+        });
+      }
+
+      // Prompt
+      parts.push({
+        text: `Estrai i dati della ricetta e restituiscili rigorosamente come oggetto JSON conforme a questo schema:
+{
+  "name": "Nome della ricetta",
+  "dishType": "Primo|Secondo|Contorno|Dolce|Snack|Bevanda|Altro",
+  "meals": ["Colazione", "Spuntino", "Pranzo", "Merenda", "Cena"],
+  "nutrition": {
+    "calories": "Calorie in kcal (numero o stringa vuota)",
+    "protein": "Proteine in grammi (numero o stringa vuota)",
+    "carbs": "Carboidrati in grammi (numero o stringa vuota)",
+    "fat": "Grassi in grammi (numero o stringa vuota)"
+  },
+  "ingredients": [
+    { "name": "Nome ingrediente", "quantity": "Quantità" }
+  ],
+  "instructions": "Istruzioni di preparazione",
+  "notes": "Note aggiuntive"
+}
+Se non sono presenti i valori nutrizionali, stimali tu sulla base degli ingredienti. Restituisci esclusivamente il JSON valido, senza markdown, backticks o commenti.`
+      });
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: parts
+            }
+          ],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `Errore API (status ${response.status})`);
+      }
+
+      const resJson = await response.json();
+      let resText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!resText) {
+        throw new Error("Nessuna risposta ricevuta da Gemini.");
+      }
+
+      resText = resText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const parsedRecipe = JSON.parse(resText);
+
+      onSuccess({
+        name: parsedRecipe.name || '',
+        dishType: parsedRecipe.dishType || 'Altro',
+        meals: parsedRecipe.meals || [],
+        nutrition: {
+          calories: parsedRecipe.nutrition?.calories || '',
+          protein: parsedRecipe.nutrition?.protein || '',
+          carbs: parsedRecipe.nutrition?.carbs || '',
+          fat: parsedRecipe.nutrition?.fat || ''
+        },
+        ingredients: parsedRecipe.ingredients || [],
+        instructions: parsedRecipe.instructions || '',
+        notes: parsedRecipe.notes || ''
+      });
+      onClose();
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Si è verificato un errore durante l'analisi. Riprova.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="recipe-modal-overlay" style={{ zIndex: 1100 }}>
+      <div className="recipe-modal day-content">
+        <h2 className="day-name">Importa con IA ⚡</h2>
+        
+        <div className="modal-scroll">
+          {!apiKey ? (
+            <div className="meal-card recipe-card mb-3" style={{ border: '1px solid var(--border-focus)', padding: '16px' }}>
+              <p className="day-description mb-2" style={{ color: 'var(--text-primary)' }}>
+                <strong>Configurazione Richiesta:</strong> Per usare l'importazione automatica, inserisci la tua chiave API Gemini gratuita.
+              </p>
+              <a 
+                href="https://aistudio.google.com/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="recipe-link mb-3"
+                style={{ textDecoration: 'underline' }}
+              >
+                Ottieni chiave gratuita su Google AI Studio ↗
+              </a>
+              <input 
+                type="password" 
+                placeholder="Incolla API Key Gemini..." 
+                value={tempKey} 
+                onChange={e => setTempKey(e.target.value)} 
+                className="input-description mb-2"
+              />
+              <button className="btn btn--save w-full" onClick={handleSaveTempKey}>Salva Chiave API</button>
+            </div>
+          ) : (
+            <>
+              <label>Pasti o Testo della Ricetta (Opzionale)</label>
+              <textarea 
+                className="input-description mb-3" 
+                rows="4" 
+                placeholder="Incolla qui la descrizione del post di Instagram/TikTok, ingredienti scritti a mano, o la trascrizione del video..."
+                value={recipeText}
+                onChange={e => setRecipeText(e.target.value)}
+              />
+
+              <label>Screenshot o Immagine della Ricetta (Consigliato per Instagram/TikTok)</label>
+              <div className="mb-3" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleImageChange} 
+                  id="recipe-image-upload" 
+                  style={{ display: 'none' }} 
+                />
+                <button 
+                  className="btn btn--edit" 
+                  onClick={() => document.getElementById('recipe-image-upload').click()}
+                >
+                  📸 {imageFile ? 'Cambia Immagine' : 'Carica Screenshot / Foto'}
+                </button>
+                {imagePreview && (
+                  <div style={{ position: 'relative', marginTop: '8px', textAlign: 'center' }}>
+                    <img 
+                      src={imagePreview} 
+                      alt="Anteprima screenshot" 
+                      style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
+                    />
+                    <button 
+                      className="btn btn--cancel small-btn" 
+                      style={{ position: 'absolute', top: '5px', right: '5px' }}
+                      onClick={() => { setImageFile(null); setImagePreview(null); }}
+                    >
+                      ✕ Rimuovi
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {error && (
+            <div className="meal-card recipe-card mb-3" style={{ border: '1px solid var(--danger)', background: 'rgba(239, 68, 68, 0.05)', color: 'var(--danger)', padding: '12px' }}>
+              <strong>Errore:</strong> {error}
+            </div>
+          )}
+
+          {loading && (
+            <div className="text-center py-4">
+              <span className="placeholder-text" style={{ display: 'block', marginBottom: '8px' }}>🤖 Analisi dello screenshot e generazione della ricetta in corso...</span>
+              <div className="spinner"></div>
+            </div>
+          )}
+        </div>
+
+        <div className="action-bar mt-auto">
+          {apiKey && !loading && (
+            <button className="btn btn--save" onClick={handleAnalyze}>⚡ Analizza con IA</button>
+          )}
+          <button className="btn btn--cancel" onClick={onClose} disabled={loading}>Annulla</button>
         </div>
       </div>
     </div>

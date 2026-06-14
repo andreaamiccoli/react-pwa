@@ -5,6 +5,12 @@ import { showToast } from './Toast.jsx';
 export default function BackupPage() {
   const fileInputRef = useRef(null);
   const [confirmRestoreData, setConfirmRestoreData] = useState(null);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('geminiApiKey') || '');
+
+  const handleSaveApiKey = () => {
+    localStorage.setItem('geminiApiKey', apiKey.trim());
+    showToast('Chiave API Gemini salvata!', 'success');
+  };
 
   const handleExport = () => {
     try {
@@ -66,9 +72,10 @@ export default function BackupPage() {
         showToast('Errore nella lettura del file JSON.', 'danger');
       }
     };
+    reader.onloadend = () => {
+      e.target.value = '';
+    };
     reader.readAsText(file);
-    // Resetta l'input file per permettere di ricaricare lo stesso file se necessario
-    e.target.value = '';
   };
 
   const executeRestore = () => {
@@ -89,21 +96,20 @@ export default function BackupPage() {
   return (
     <div className="day-content">
       <div className="day-hero mb-4">
-        <h2 className="day-name">Backup Dati</h2>
+        <h2 className="day-name">Backup & Impostazioni</h2>
         <p className="day-description">
-          Salva una copia di sicurezza delle tue diete, ricette e preset. 
-          Conserva questo file per non perdere mai i tuoi dati.
+          Salva una copia dei dati o configura l'integrazione con l'Intelligenza Artificiale per l'importazione automatica delle ricette.
         </p>
       </div>
 
       <div className="meal-card recipe-card mb-4">
-        <h3 className="recipe-name text-accent mb-2">Esporta</h3>
+        <h3 className="recipe-name text-accent mb-2">Esporta Dati</h3>
         <p className="recipe-meta mb-3">Scarica un file contenente tutti i tuoi dati attuali.</p>
         <button className="btn btn--save" onClick={handleExport}>📥 Scarica Backup</button>
       </div>
 
-      <div className="meal-card recipe-card">
-        <h3 className="recipe-name text-danger mb-2">Importa</h3>
+      <div className="meal-card recipe-card mb-4">
+        <h3 className="recipe-name text-danger mb-2">Importa Dati</h3>
         <p className="recipe-meta mb-3">
           Ripristina i dati da un file di backup precedente. <br/>
           <strong>Attenzione:</strong> questa operazione cancellerà i dati attuali!
@@ -116,6 +122,33 @@ export default function BackupPage() {
           style={{ display: 'none' }} 
         />
         <button className="btn btn--edit" onClick={handleImportClick}>📤 Carica Backup</button>
+      </div>
+
+      <div className="meal-card recipe-card">
+        <h3 className="recipe-name text-accent mb-2">🤖 Configurazione IA (Gemini API)</h3>
+        <p className="recipe-meta mb-3">
+          Configura una chiave API per abilitare l'importazione intelligente delle ricette tramite screenshot o testo.
+          La chiave rimarrà salvata esclusivamente in questo browser.
+          <br />
+          <a 
+            href="https://aistudio.google.com/" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            style={{ color: '#00adb5', textDecoration: 'underline', display: 'inline-block', marginTop: '6px' }}
+          >
+            Ottieni una chiave API Gemini gratuita ↗
+          </a>
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <input 
+            type="password" 
+            placeholder="Incolla qui la tua API Key Gemini..." 
+            value={apiKey} 
+            onChange={e => setApiKey(e.target.value)} 
+            className="input-description"
+          />
+          <button className="btn btn--save" onClick={handleSaveApiKey}>Salva Chiave API</button>
+        </div>
       </div>
 
       <ConfirmModal
