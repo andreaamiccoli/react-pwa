@@ -1,4 +1,4 @@
-const CACHE_NAME = 'react-pwa-cache-v8'; // Aggiornato per forzare il download della nuova versione
+const CACHE_NAME = 'react-pwa-cache-v9'; // Aggiornato per forzare il download della nuova versione
 
 // File statici stabili da salvare subito in cache
 const PRECACHE_ASSETS = [
