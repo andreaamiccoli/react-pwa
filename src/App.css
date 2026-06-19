@@ -937,6 +937,7 @@ body {
   align-items: center;
   gap: 14px;
   height: 48px;
+  justify-content: center;
 }
 
 /* Bottone +/- porzioni (usato in modal e bottom sheet) */
