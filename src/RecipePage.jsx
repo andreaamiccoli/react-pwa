@@ -13,6 +13,30 @@ const loadRecipes = () => {
   return [];
 };
 
+// Helper: scala un valore numerico di nutrizione
+const scaleNutri = (value, targetServings, baseServings) => {
+  const n = parseFloat(value);
+  if (isNaN(n) || !baseServings || baseServings <= 0) return value;
+  const scaled = (n / baseServings) * targetServings;
+  return Number.isInteger(scaled) ? scaled : parseFloat(scaled.toFixed(1));
+};
+
+// Helper: cerca e scala i numeri in una stringa di quantità
+// Es. "100g" -> "50g" (fattore 0.5), "1.5 cucchiai" -> "3 cucchiai" (fattore 2)
+const scaleQuantity = (quantityStr, targetServings, baseServings) => {
+  if (!quantityStr || !baseServings || baseServings <= 0) return quantityStr;
+  const factor = targetServings / baseServings;
+  if (factor === 1) return quantityStr;
+
+  return quantityStr.replace(/(\d+([.,]\d+)?)/g, (match) => {
+    const num = parseFloat(match.replace(',', '.'));
+    if (isNaN(num)) return match;
+    const scaled = num * factor;
+    const result = Number.isInteger(scaled) ? scaled : parseFloat(scaled.toFixed(1));
+    return String(result);
+  });
+};
+
 export default function RecipePage() {
   const [recipes, setRecipes] = useState(loadRecipes);
   
@@ -70,7 +94,7 @@ export default function RecipePage() {
           ⚡ Importa con IA
         </button>
         <button className="btn btn--save" onClick={() => setEditingRecipe({
-          name: '', meals: [], dishType: 'Altro', ingredients: [],
+          name: '', meals: [], dishType: 'Altro', servings: 1, ingredients: [],
           nutrition: { calories: '', protein: '', carbs: '', fat: '' }, instructions: '', notes: ''
         })}>
           + Nuova
@@ -93,7 +117,7 @@ export default function RecipePage() {
             className="input-description mt-2"
           />
           <input 
-            type="number" placeholder="Max Calorie..." 
+            type="number" placeholder="Max Calorie (per porzione)..." 
             value={filterMaxCals} onChange={e => setFilterMaxCals(e.target.value)}
             className="input-description mt-2"
           />
@@ -107,27 +131,38 @@ export default function RecipePage() {
         {filteredRecipes.length === 0 ? (
           <p className="placeholder-text mt-4 text-center">Nessuna ricetta trovata.</p>
         ) : (
-          filteredRecipes.map(r => (
-            <div key={r.id} className="meal-card recipe-card">
-              <div className="recipe-header">
-                <h3 className="recipe-name">{r.name || "Senza Nome"}</h3>
-                <span className="recipe-badge">{r.dishType}</span>
+          filteredRecipes.map(r => {
+            const base = parseInt(r.servings) || 1;
+            // Mostra sempre i valori per 1 porzione nella card
+            const cals1  = scaleNutri(r.nutrition?.calories, 1, base);
+            const prot1  = scaleNutri(r.nutrition?.protein,  1, base);
+            const carbs1 = scaleNutri(r.nutrition?.carbs,    1, base);
+            const fat1   = scaleNutri(r.nutrition?.fat,      1, base);
+            return (
+              <div key={r.id} className="meal-card recipe-card">
+                <div className="recipe-header">
+                  <h3 className="recipe-name">{r.name || "Senza Nome"}</h3>
+                  <span className="recipe-badge">{r.dishType}</span>
+                </div>
+                <p className="recipe-meta">{r.meals.join(', ')}</p>
+                
+                <div className="recipe-nutri mt-2">
+                  <span>🔥 {cals1 || 0} kcal</span>
+                  <span>🥩 {prot1 || 0}g P</span>
+                  <span>🍞 {carbs1 || 0}g C</span>
+                  <span>🥑 {fat1 || 0}g F</span>
+                </div>
+                {base > 1 && (
+                  <p className="recipe-servings-note">Valori per 1 porzione (ricetta base: {base} porzioni)</p>
+                )}
+                
+                <div className="recipe-actions mt-3">
+                  <button className="btn btn--edit small-btn" onClick={() => setEditingRecipe({...r})}>✏️</button>
+                  <button className="btn btn--cancel small-btn" onClick={() => handleDeleteRecipe(r.id)}>🗑️</button>
+                </div>
               </div>
-              <p className="recipe-meta">{r.meals.join(', ')}</p>
-              
-              <div className="recipe-nutri mt-2">
-                <span>🔥 {r.nutrition.calories || 0} kcal</span>
-                <span>🥩 {r.nutrition.protein || 0}g P</span>
-                <span>🍞 {r.nutrition.carbs || 0}g C</span>
-                <span>🥑 {r.nutrition.fat || 0}g F</span>
-              </div>
-              
-              <div className="recipe-actions mt-3">
-                <button className="btn btn--edit small-btn" onClick={() => setEditingRecipe({...r})}>✏️</button>
-                <button className="btn btn--cancel small-btn" onClick={() => handleDeleteRecipe(r.id)}>🗑️</button>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -151,7 +186,10 @@ export default function RecipePage() {
 
 // Sotto-componente Modal
 function RecipeModal({ recipe, onSave, onClose }) {
-  const [formData, setFormData] = useState(recipe);
+  const [formData, setFormData] = useState({
+    servings: 1,
+    ...recipe,
+  });
 
   const handleChange = (field, value) => setFormData(p => ({ ...p, [field]: value }));
   const handleNutriChange = (field, value) => setFormData(p => ({ ...p, nutrition: { ...p.nutrition, [field]: value } }));
@@ -174,6 +212,8 @@ function RecipeModal({ recipe, onSave, onClose }) {
   const removeIngredient = (index) => {
     handleChange('ingredients', formData.ingredients.filter((_, i) => i !== index));
   };
+
+  const servings = parseInt(formData.servings) || 1;
 
   return (
     <div className="recipe-modal-overlay">
@@ -198,15 +238,44 @@ function RecipeModal({ recipe, onSave, onClose }) {
             ))}
           </div>
 
-          <label>Valori Nutrizionali</label>
+          {/* Campo Porzioni */}
+          <label>Porzioni (per quante persone sono queste dosi?)</label>
+          <div className="servings-row mb-3">
+            <button 
+              className="servings-btn" 
+              onClick={() => handleChange('servings', Math.max(1, servings - 1))}
+              disabled={servings <= 1}
+            >−</button>
+            <span className="servings-value">{servings} {servings === 1 ? 'persona' : 'persone'}</span>
+            <button 
+              className="servings-btn" 
+              onClick={() => handleChange('servings', servings + 1)}
+            >+</button>
+          </div>
+          {servings > 1 && (
+            <p className="servings-hint mb-3">
+              💡 Inserisci ingredienti e valori nutrizionali totali per {servings} persone. L'app li mostrerà divisi per 1 persona.
+            </p>
+          )}
+
+          <label>Valori Nutrizionali {servings > 1 ? `(totali per ${servings} persone)` : '(per 1 persona)'}</label>
           <div className="nutri-inputs mb-3">
             <input type="number" placeholder="Kcal" className="input-description" value={formData.nutrition.calories} onChange={e => handleNutriChange('calories', e.target.value)} />
             <input type="number" placeholder="Prot (g)" className="input-description" value={formData.nutrition.protein} onChange={e => handleNutriChange('protein', e.target.value)} />
             <input type="number" placeholder="Carb (g)" className="input-description" value={formData.nutrition.carbs} onChange={e => handleNutriChange('carbs', e.target.value)} />
             <input type="number" placeholder="Gras (g)" className="input-description" value={formData.nutrition.fat} onChange={e => handleNutriChange('fat', e.target.value)} />
           </div>
+          {servings > 1 && (
+            <div className="nutri-per-person mb-3">
+              <span>Per 1 persona: </span>
+              <strong>🔥 {scaleNutri(formData.nutrition.calories, 1, servings) || 0} kcal</strong>
+              <span> · {scaleNutri(formData.nutrition.protein, 1, servings) || 0}g P</span>
+              <span> · {scaleNutri(formData.nutrition.carbs, 1, servings) || 0}g C</span>
+              <span> · {scaleNutri(formData.nutrition.fat, 1, servings) || 0}g F</span>
+            </div>
+          )}
 
-          <label>Ingredienti</label>
+          <label>Ingredienti {servings > 1 ? `(dosi totali per ${servings} persone)` : '(dosi per 1 persona)'}</label>
           {formData.ingredients.map((ing, i) => (
             <div key={i} className="ingredient-row mb-2">
               <input placeholder="Nome" className="input-description flex-2" value={ing.name} onChange={e => updateIngredient(i, 'name', e.target.value)} />
@@ -288,18 +357,19 @@ function AiImportModal({ onClose, onSuccess }) {
         });
       }
 
-      // Prompt
+      // Prompt aggiornato con supporto porzioni
       parts.push({
-        text: `Estrai i dati della ricetta e restituiscili rigorosamente come oggetto JSON conforme a questo schema:
+        text: `Analizza la ricetta fornita ed estrai tutti i dati. Restituisci esclusivamente un oggetto JSON valido (senza markdown, backticks o commenti) conforme a questo schema:
 {
   "name": "Nome della ricetta",
   "dishType": "Primo|Secondo|Contorno|Dolce|Snack|Bevanda|Altro",
   "meals": ["Colazione", "Spuntino", "Pranzo", "Merenda", "Cena"],
+  "servings": 1,
   "nutrition": {
-    "calories": "Calorie in kcal (numero o stringa vuota)",
-    "protein": "Proteine in grammi (numero o stringa vuota)",
-    "carbs": "Carboidrati in grammi (numero o stringa vuota)",
-    "fat": "Grassi in grammi (numero o stringa vuota)"
+    "calories": 0,
+    "protein": 0,
+    "carbs": 0,
+    "fat": 0
   },
   "ingredients": [
     { "name": "Nome ingrediente", "quantity": "Quantità" }
@@ -307,7 +377,13 @@ function AiImportModal({ onClose, onSuccess }) {
   "instructions": "Istruzioni di preparazione",
   "notes": "Note aggiuntive"
 }
-Se non sono presenti i valori nutrizionali, stimali tu sulla base degli ingredienti. Restituisci esclusivamente il JSON valido, senza markdown, backticks o commenti.`
+
+ISTRUZIONI IMPORTANTI PER LE PORZIONI:
+- Determina per quante persone è la ricetta originale e imposta il campo "servings" con quel numero (es: se la ricetta è per 4 persone, scrivi "servings": 4).
+- Se la ricetta non specifica il numero di persone, imposta "servings": 1.
+- Gli ingredienti e i valori nutrizionali devono essere quelli ORIGINALI della ricetta (non scalare per 1 persona, ci pensa l'app). Se la ricetta è per 4 persone, metti gli ingredienti per 4 persone e i valori nutrizionali totali per 4 persone.
+- Se i valori nutrizionali non sono specificati, stimali in modo realistico sulla base degli ingredienti e delle quantità indicate (sempre per le porzioni totali della ricetta).
+- Nelle "meals" includi solo i pasti adatti a quella ricetta (non includerli tutti, scegli solo quelli appropriati).`
       });
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
@@ -345,6 +421,7 @@ Se non sono presenti i valori nutrizionali, stimali tu sulla base degli ingredie
         name: parsedRecipe.name || '',
         dishType: parsedRecipe.dishType || 'Altro',
         meals: parsedRecipe.meals || [],
+        servings: parseInt(parsedRecipe.servings) || 1,
         nutrition: {
           calories: parsedRecipe.nutrition?.calories || '',
           protein: parsedRecipe.nutrition?.protein || '',
@@ -395,7 +472,7 @@ Se non sono presenti i valori nutrizionali, stimali tu sulla base degli ingredie
             </div>
           ) : (
             <>
-              <label>Pasti o Testo della Ricetta (Opzionale)</label>
+              <label>Testo della Ricetta (Opzionale)</label>
               <textarea 
                 className="input-description mb-3" 
                 rows="4" 
@@ -447,7 +524,7 @@ Se non sono presenti i valori nutrizionali, stimali tu sulla base degli ingredie
 
           {loading && (
             <div className="text-center py-4">
-              <span className="placeholder-text" style={{ display: 'block', marginBottom: '8px' }}>🤖 Analisi dello screenshot e generazione della ricetta in corso...</span>
+              <span className="placeholder-text" style={{ display: 'block', marginBottom: '8px' }}>🤖 Analisi e generazione ricetta in corso...</span>
               <div className="spinner"></div>
             </div>
           )}
@@ -463,3 +540,6 @@ Se non sono presenti i valori nutrizionali, stimali tu sulla base degli ingredie
     </div>
   );
 }
+
+// Esporta le funzioni helper per l'uso in App.jsx
+export { scaleNutri, scaleQuantity };

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import './App.css'
-import RecipePage from './RecipePage.jsx'
+import RecipePage, { scaleNutri, scaleQuantity } from './RecipePage.jsx'
 import Drawer from './Drawer.jsx'
 import PresetsPage from './PresetsPage.jsx'
 import BackupPage from './BackupPage.jsx'
@@ -80,6 +80,7 @@ export default function App() {
   // Stato per Recipe Selector e Bottom Sheet
   const [selectingMealKey, setSelectingMealKey] = useState(null)
   const [viewingRecipe, setViewingRecipe] = useState(null) // ID della ricetta da visualizzare nel bottom sheet
+  const [targetServings, setTargetServings] = useState(1)  // Porzioni selezionate nel Bottom Sheet
   const [allRecipes, setAllRecipes]   = useState([])
 
   // Conferme Modali
@@ -197,6 +198,12 @@ export default function App() {
   const viewTitle = view === 'calendar' ? 'Dieta Settimanale' : (view === 'recipes' ? 'Ricettario' : (view === 'presets' ? 'Preset' : 'Impostazioni'));
   const recipeToView = viewingRecipe ? allRecipes.find(r => r.id === viewingRecipe) : null;
 
+  // Apri bottom sheet e inizializza le porzioni a 1 (sempre per persona singola di default)
+  const handleViewRecipe = (id) => {
+    setViewingRecipe(id);
+    setTargetServings(1);
+  };
+
   return (
     <div className="app">
       {/* ===== NOTIFICHE E NAV ===== */}
@@ -302,7 +309,7 @@ export default function App() {
                   ) : (
                     <div className="meal-content">
                       {currentData.meals[meal.key].recipeId && (
-                        <div className="recipe-link" onClick={() => setViewingRecipe(currentData.meals[meal.key].recipeId)}>
+                        <div className="recipe-link" onClick={() => handleViewRecipe(currentData.meals[meal.key].recipeId)}>
                           <span className="recipe-link-icon">📖</span> Apri ricetta: <strong>{currentData.meals[meal.key].recipeName}</strong>
                         </div>
                       )}
@@ -372,39 +379,67 @@ export default function App() {
         <div className="bottom-sheet-overlay" onClick={() => setViewingRecipe(null)}>
           <div className="bottom-sheet" onClick={e => e.stopPropagation()}>
             <div className="bottom-sheet-drag-handle"></div>
-            {recipeToView ? (
-              <div className="bottom-sheet-content">
-                <h2 className="recipe-name mb-2">{recipeToView.name}</h2>
-                <span className="recipe-badge mb-3 inline-block">{recipeToView.dishType}</span>
-                
-                <div className="recipe-nutri mb-3">
-                  <span>🔥 {recipeToView.nutrition?.calories || 0} kcal</span>
-                  <span>🥩 {recipeToView.nutrition?.protein || 0}g P</span>
-                  <span>🍞 {recipeToView.nutrition?.carbs || 0}g C</span>
-                  <span>🥑 {recipeToView.nutrition?.fat || 0}g F</span>
+            {recipeToView ? (() => {
+              const baseServings = parseInt(recipeToView.servings) || 1;
+              const factor = targetServings / baseServings;
+              const scaledCals  = scaleNutri(recipeToView.nutrition?.calories, targetServings, baseServings);
+              const scaledProt  = scaleNutri(recipeToView.nutrition?.protein,  targetServings, baseServings);
+              const scaledCarbs = scaleNutri(recipeToView.nutrition?.carbs,    targetServings, baseServings);
+              const scaledFat   = scaleNutri(recipeToView.nutrition?.fat,      targetServings, baseServings);
+              return (
+                <div className="bottom-sheet-content">
+                  <h2 className="recipe-name mb-2">{recipeToView.name}</h2>
+                  <span className="recipe-badge mb-3 inline-block">{recipeToView.dishType}</span>
+
+                  {/* Selettore Porzioni */}
+                  <div className="servings-selector mb-3">
+                    <span className="servings-selector-label">👤 Porzioni:</span>
+                    <button
+                      className="servings-btn"
+                      onClick={() => setTargetServings(s => Math.max(1, s - 1))}
+                      disabled={targetServings <= 1}
+                    >−</button>
+                    <span className="servings-value">{targetServings}</span>
+                    <button
+                      className="servings-btn"
+                      onClick={() => setTargetServings(s => s + 1)}
+                    >+</button>
+                  </div>
+
+                  <div className="recipe-nutri mb-3">
+                    <span>🔥 {scaledCals || 0} kcal</span>
+                    <span>🥩 {scaledProt || 0}g P</span>
+                    <span>🍞 {scaledCarbs || 0}g C</span>
+                    <span>🥑 {scaledFat || 0}g F</span>
+                  </div>
+
+                  {recipeToView.ingredients?.length > 0 && (
+                    <div className="mb-3">
+                      <h4 className="mb-2 text-accent">Ingredienti</h4>
+                      <ul className="ingredient-list">
+                        {recipeToView.ingredients.map((ing, i) => (
+                          <li key={i}>
+                            <strong>{ing.name}</strong>
+                            <span className="text-secondary">
+                              {scaleQuantity(ing.quantity, targetServings, baseServings)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {recipeToView.instructions && (
+                    <div className="mb-3">
+                      <h4 className="mb-2 text-accent">Preparazione</h4>
+                      <p className="meal-text-note">{recipeToView.instructions}</p>
+                    </div>
+                  )}
+
+                  <button className="btn btn--cancel w-full mt-3" onClick={() => setViewingRecipe(null)}>Chiudi</button>
                 </div>
-
-                {recipeToView.ingredients?.length > 0 && (
-                  <div className="mb-3">
-                    <h4 className="mb-2 text-accent">Ingredienti</h4>
-                    <ul className="ingredient-list">
-                      {recipeToView.ingredients.map((ing, i) => (
-                        <li key={i}><strong>{ing.name}</strong> <span className="text-secondary">{ing.quantity}</span></li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {recipeToView.instructions && (
-                  <div className="mb-3">
-                    <h4 className="mb-2 text-accent">Preparazione</h4>
-                    <p className="meal-text-note">{recipeToView.instructions}</p>
-                  </div>
-                )}
-                
-                <button className="btn btn--cancel w-full mt-3" onClick={() => setViewingRecipe(null)}>Chiudi</button>
-              </div>
-            ) : (
+              );
+            })() : (
               <p>Ricetta non trovata o eliminata.</p>
             )}
           </div>
