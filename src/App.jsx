@@ -45,7 +45,7 @@ const buildDefaultData = () => {
   return data
 }
 
-// Helper: normalizza i dati vecchi per supportare obiettivi, recipeId come array e pertinenze
+// Helper: normalizza i dati vecchi per supportare obiettivi, ricette multiple con porzioni e pertinenze
 const normalizeMeals = (data) => {
   const normalized = {}
   for (const day of DAYS) {
@@ -69,10 +69,14 @@ const normalizeMeals = (data) => {
         targetCalories = val.targetCalories || ''
         
         if (Array.isArray(val.recipes)) {
-          recipes = val.recipes
+          recipes = val.recipes.map(r => ({
+            id: r.id,
+            name: r.name,
+            servings: parseInt(r.servings) || 1
+          }))
         } else if (val.recipeId) {
-          // Migra da ricetta singola a array
-          recipes = [{ id: val.recipeId, name: val.recipeName || 'Ricetta' }]
+          // Migra da ricetta singola a array con porzione 1
+          recipes = [{ id: val.recipeId, name: val.recipeName || 'Ricetta', servings: 1 }]
         }
       }
       
@@ -201,7 +205,8 @@ export default function App() {
           ...prev.meals,
           [selectingMealKey]: { 
             ...prev.meals[selectingMealKey], 
-            recipes: [...existing, { id: recipe.id, name: recipe.name }] 
+            // Inizializza con 1 porzione per questo pasto
+            recipes: [...existing, { id: recipe.id, name: recipe.name, servings: 1 }] 
           }
         }
       }
@@ -217,6 +222,25 @@ export default function App() {
         [mealKey]: { 
           ...prev.meals[mealKey], 
           recipes: (prev.meals[mealKey].recipes || []).filter(r => r.id !== recipeId)
+        }
+      }
+    }))
+  }
+
+  const handleUpdateRecipeServings = (mealKey, recipeId, change) => {
+    setTempData(prev => ({
+      ...prev,
+      meals: {
+        ...prev.meals,
+        [mealKey]: {
+          ...prev.meals[mealKey],
+          recipes: (prev.meals[mealKey].recipes || []).map(r => {
+            if (r.id === recipeId) {
+              const current = parseInt(r.servings) || 1
+              return { ...r, servings: Math.max(1, current + change) }
+            }
+            return r
+          })
         }
       }
     }))
@@ -244,21 +268,21 @@ export default function App() {
   const viewTitle = view === 'calendar' ? 'Dieta Settimanale' : (view === 'recipes' ? 'Ricettario' : (view === 'presets' ? 'Preset' : 'Impostazioni'));
   const recipeToView = viewingRecipe ? allRecipes.find(r => r.id === viewingRecipe) : null;
 
-  // Apri bottom sheet e inizializza le porzioni a 1
-  const handleViewRecipe = (id) => {
+  // Apri bottom sheet e inizializza le porzioni al valore salvato nel pasto (oppure 1 se aperto da ricettario generale)
+  const handleViewRecipe = (id, currentServings = 1) => {
     setViewingRecipe(id);
-    setTargetServings(1);
+    setTargetServings(currentServings);
   };
 
-  // --- CALCOLATORE VALORI NUTRIZIONALI (Sempre normalizzati per 1 porzione) ---
-  const getRecipeMacros = (recipe) => {
+  // --- CALCOLATORE VALORI NUTRIZIONALI MOLTIPLICATO PER LE PORZIONI SCELTE ---
+  const getRecipeMacros = (recipe, activeServings = 1) => {
     if (!recipe) return { calories: 0, protein: 0, carbs: 0, fat: 0 }
     const base = parseInt(recipe.servings) || 1
     return {
-      calories: scaleNutri(recipe.nutrition?.calories, 1, base) || 0,
-      protein: scaleNutri(recipe.nutrition?.protein, 1, base) || 0,
-      carbs: scaleNutri(recipe.nutrition?.carbs, 1, base) || 0,
-      fat: scaleNutri(recipe.nutrition?.fat, 1, base) || 0
+      calories: scaleNutri(recipe.nutrition?.calories, activeServings, base) || 0,
+      protein: scaleNutri(recipe.nutrition?.protein, activeServings, base) || 0,
+      carbs: scaleNutri(recipe.nutrition?.carbs, activeServings, base) || 0,
+      fat: scaleNutri(recipe.nutrition?.fat, activeServings, base) || 0
     }
   }
 
@@ -267,13 +291,13 @@ export default function App() {
     if (!mealData || !mealData.recipes) return total
     mealData.recipes.forEach(rRef => {
       const fullRecipe = allRecipes.find(r => r.id === rRef.id)
-      const macros = getRecipeMacros(fullRecipe)
+      const servings = parseInt(rRef.servings) || 1
+      const macros = getRecipeMacros(fullRecipe, servings)
       total.calories += macros.calories
       total.protein += macros.protein
       total.carbs += macros.carbs
       total.fat += macros.fat
     })
-    // Arrotonda a 1 decimale
     total.calories = parseFloat(total.calories.toFixed(1))
     total.protein = parseFloat(total.protein.toFixed(1))
     total.carbs = parseFloat(total.carbs.toFixed(1))
@@ -480,16 +504,33 @@ export default function App() {
 
                     {isEditing ? (
                       <div className="meal-edit-container mt-3">
-                        {/* Elenco ricette associate con pulsante di rimozione */}
+                        {/* Elenco ricette associate con pulsante di rimozione e regolatore porzioni */}
                         {(mealData.recipes || []).length > 0 && (
                           <div className="attached-recipes-list mb-2">
-                            {mealData.recipes.map(rRef => (
-                              <div key={rRef.id} className="attached-recipe-badge">
-                                <span className="badge-icon">📖</span>
-                                <span className="badge-text">{rRef.name}</span>
-                                <button className="badge-close" onClick={() => handleRemoveRecipe(meal.key, rRef.id)}>✕</button>
-                              </div>
-                            ))}
+                            {mealData.recipes.map(rRef => {
+                              const servings = parseInt(rRef.servings) || 1
+                              return (
+                                <div key={rRef.id} className="attached-recipe-badge flex-wrap-mobile">
+                                  <span className="badge-icon">📖</span>
+                                  <span className="badge-text">{rRef.name}</span>
+                                  
+                                  {/* Regolatore Porzioni in Linea */}
+                                  <div className="badge-servings-control">
+                                    <button 
+                                      className="badge-servings-btn"
+                                      onClick={() => handleUpdateRecipeServings(meal.key, rRef.id, -1)}
+                                    >−</button>
+                                    <span className="badge-servings-val">{servings} p.</span>
+                                    <button 
+                                      className="badge-servings-btn"
+                                      onClick={() => handleUpdateRecipeServings(meal.key, rRef.id, 1)}
+                                    >+</button>
+                                  </div>
+
+                                  <button className="badge-close ml-1" onClick={() => handleRemoveRecipe(meal.key, rRef.id)}>✕</button>
+                                </div>
+                              )
+                            })}
                           </div>
                         )}
                         <button className="btn btn--edit small-py mb-2 w-full" onClick={() => setSelectingMealKey(meal.key)}>
@@ -506,19 +547,22 @@ export default function App() {
                       </div>
                     ) : (
                       <div className="meal-content mt-3">
-                        {/* Mostra solo emoji 📖 senza scritta */}
+                        {/* Mostra emoji 📖, nome ricetta e porzioni assegnate */}
                         {(mealData.recipes || []).length > 0 && (
                           <div className="recipe-links-container mb-2">
-                            {mealData.recipes.map(rRef => (
-                              <span 
-                                key={rRef.id} 
-                                className="recipe-link-inline-emoji"
-                                onClick={() => handleViewRecipe(rRef.id)}
-                                title={rRef.name}
-                              >
-                                📖 <strong>{rRef.name}</strong>
-                              </span>
-                            ))}
+                            {mealData.recipes.map(rRef => {
+                              const servings = parseInt(rRef.servings) || 1
+                              return (
+                                <span 
+                                  key={rRef.id} 
+                                  className="recipe-link-inline-emoji"
+                                  onClick={() => handleViewRecipe(rRef.id, servings)}
+                                  title={rRef.name}
+                                >
+                                  📖 <strong>{rRef.name}</strong> {servings > 1 && <span className="inline-servings-badge">({servings} porz.)</span>}
+                                </span>
+                              )
+                            })}
                           </div>
                         )}
                         {mealData.text ? (
