@@ -18,33 +18,65 @@ const MEALS = [
   { key: 'cena',           label: 'Cena',                 icon: '🌙' },
 ]
 
+// Mappatura per la pertinenza delle ricette per pasto
+const MEAL_PERTINENCE = {
+  colazione: ['Dolce', 'Snack', 'Bevanda', 'Altro'],
+  spuntino: ['Dolce', 'Snack', 'Bevanda', 'Altro'],
+  pranzo: ['Primo', 'Secondo', 'Contorno', 'Dolce', 'Snack', 'Bevanda', 'Altro'],
+  merenda: ['Dolce', 'Snack', 'Bevanda', 'Altro'],
+  cena: ['Primo', 'Secondo', 'Contorno', 'Dolce', 'Snack', 'Bevanda', 'Altro'],
+}
+
 const buildDefaultData = () => {
   const data = {}
   DAYS.forEach(day => {
     data[day] = {
       description: '',
+      targetCalories: '', // Obiettivo manuale del giorno
       meals: {
-        colazione: '', spuntino: '', pranzo: '', merenda: '', cena: '',
+        colazione: { text: '', targetCalories: '', recipes: [] },
+        spuntino: { text: '', targetCalories: '', recipes: [] },
+        pranzo: { text: '', targetCalories: '', recipes: [] },
+        merenda: { text: '', targetCalories: '', recipes: [] },
+        cena: { text: '', targetCalories: '', recipes: [] },
       }
     }
   })
   return data
 }
 
-// Helper: normalizza i dati vecchi per supportare recipeId e text
+// Helper: normalizza i dati vecchi per supportare obiettivi, recipeId come array e pertinenze
 const normalizeMeals = (data) => {
   const normalized = {}
   for (const day of DAYS) {
-    normalized[day] = { description: data[day]?.description || '', meals: {} }
+    normalized[day] = { 
+      description: data[day]?.description || '', 
+      targetCalories: data[day]?.targetCalories || '',
+      meals: {} 
+    }
     for (const m of MEALS) {
       const val = data[day]?.meals?.[m.key]
+      
+      // Inizializza la struttura base
+      let text = ''
+      let targetCalories = ''
+      let recipes = []
+
       if (typeof val === 'string') {
-        normalized[day].meals[m.key] = { text: val, recipeId: null, recipeName: null }
+        text = val
       } else if (val && typeof val === 'object') {
-        normalized[day].meals[m.key] = { text: val.text || '', recipeId: val.recipeId || null, recipeName: val.recipeName || null }
-      } else {
-        normalized[day].meals[m.key] = { text: '', recipeId: null, recipeName: null }
+        text = val.text || ''
+        targetCalories = val.targetCalories || ''
+        
+        if (Array.isArray(val.recipes)) {
+          recipes = val.recipes
+        } else if (val.recipeId) {
+          // Migra da ricetta singola a array
+          recipes = [{ id: val.recipeId, name: val.recipeName || 'Ricetta' }]
+        }
       }
+      
+      normalized[day].meals[m.key] = { text, targetCalories, recipes }
     }
   }
   return normalized
@@ -156,22 +188,36 @@ export default function App() {
   }
 
   const handleAssignRecipe = (recipe) => {
-    setTempData(prev => ({
-      ...prev,
-      meals: {
-        ...prev.meals,
-        [selectingMealKey]: { ...prev.meals[selectingMealKey], recipeId: recipe.id, recipeName: recipe.name }
+    setTempData(prev => {
+      const existing = prev.meals[selectingMealKey].recipes || []
+      // Evita duplicati
+      if (existing.some(r => r.id === recipe.id)) {
+        setSelectingMealKey(null)
+        return prev
       }
-    }))
+      return {
+        ...prev,
+        meals: {
+          ...prev.meals,
+          [selectingMealKey]: { 
+            ...prev.meals[selectingMealKey], 
+            recipes: [...existing, { id: recipe.id, name: recipe.name }] 
+          }
+        }
+      }
+    })
     setSelectingMealKey(null)
   }
 
-  const handleRemoveRecipe = (mealKey) => {
+  const handleRemoveRecipe = (mealKey, recipeId) => {
     setTempData(prev => ({
       ...prev,
       meals: {
         ...prev.meals,
-        [mealKey]: { ...prev.meals[mealKey], recipeId: null, recipeName: null }
+        [mealKey]: { 
+          ...prev.meals[mealKey], 
+          recipes: (prev.meals[mealKey].recipes || []).filter(r => r.id !== recipeId)
+        }
       }
     }))
   }
@@ -179,7 +225,7 @@ export default function App() {
   // Presets load handling (passed to PresetsPage)
   const executePresetLoad = (presetData) => {
     setDietData(presetData);
-    setView('calendar'); // torna al calendario se era in preset
+    setView('calendar');
   };
 
   const handleLoadPresetReq = (presetData) => {
@@ -198,11 +244,64 @@ export default function App() {
   const viewTitle = view === 'calendar' ? 'Dieta Settimanale' : (view === 'recipes' ? 'Ricettario' : (view === 'presets' ? 'Preset' : 'Impostazioni'));
   const recipeToView = viewingRecipe ? allRecipes.find(r => r.id === viewingRecipe) : null;
 
-  // Apri bottom sheet e inizializza le porzioni a 1 (sempre per persona singola di default)
+  // Apri bottom sheet e inizializza le porzioni a 1
   const handleViewRecipe = (id) => {
     setViewingRecipe(id);
     setTargetServings(1);
   };
+
+  // --- CALCOLATORE VALORI NUTRIZIONALI (Sempre normalizzati per 1 porzione) ---
+  const getRecipeMacros = (recipe) => {
+    if (!recipe) return { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    const base = parseInt(recipe.servings) || 1
+    return {
+      calories: scaleNutri(recipe.nutrition?.calories, 1, base) || 0,
+      protein: scaleNutri(recipe.nutrition?.protein, 1, base) || 0,
+      carbs: scaleNutri(recipe.nutrition?.carbs, 1, base) || 0,
+      fat: scaleNutri(recipe.nutrition?.fat, 1, base) || 0
+    }
+  }
+
+  const getMealMacros = (mealData) => {
+    const total = { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    if (!mealData || !mealData.recipes) return total
+    mealData.recipes.forEach(rRef => {
+      const fullRecipe = allRecipes.find(r => r.id === rRef.id)
+      const macros = getRecipeMacros(fullRecipe)
+      total.calories += macros.calories
+      total.protein += macros.protein
+      total.carbs += macros.carbs
+      total.fat += macros.fat
+    })
+    // Arrotonda a 1 decimale
+    total.calories = parseFloat(total.calories.toFixed(1))
+    total.protein = parseFloat(total.protein.toFixed(1))
+    total.carbs = parseFloat(total.carbs.toFixed(1))
+    total.fat = parseFloat(total.fat.toFixed(1))
+    return total
+  }
+
+  const getDayMacros = (dayData) => {
+    const total = { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    if (!dayData || !dayData.meals) return total
+    Object.keys(dayData.meals).forEach(mealKey => {
+      const macros = getMealMacros(dayData.meals[mealKey])
+      total.calories += macros.calories
+      total.protein += macros.protein
+      total.carbs += macros.carbs
+      total.fat += macros.fat
+    })
+    total.calories = parseFloat(total.calories.toFixed(1))
+    total.protein = parseFloat(total.protein.toFixed(1))
+    total.carbs = parseFloat(total.carbs.toFixed(1))
+    total.fat = parseFloat(total.fat.toFixed(1))
+    return total
+  }
+
+  // Calcoli macro giornalieri attuali
+  const dayMacros = getDayMacros(currentData)
+  const targetDayCal = currentData.targetCalories ? parseFloat(currentData.targetCalories) : 0
+  const dayProgressPct = targetDayCal > 0 ? Math.min(100, (dayMacros.calories / targetDayCal) * 100) : 0
 
   return (
     <div className="app">
@@ -276,52 +375,162 @@ export default function App() {
               )}
             </div>
 
-            <div className="meals-list">
-              {MEALS.map(meal => (
-                <div key={meal.key} className="meal-card">
-                  <div className="meal-header">
-                    <span className="meal-icon">{meal.icon}</span>
-                    <span className="meal-label">{meal.label}</span>
-                  </div>
-
+            {/* ===== VALORI NUTRIZIONALI GIORNALIERI ===== */}
+            <div className="meal-card goals-card mb-4">
+              <div className="goals-header">
+                <span className="goals-title">📊 Fabbisogno Giornaliero</span>
+              </div>
+              <div className="goals-inputs mt-2">
+                <label className="goal-input-label">
+                  <span>Obiettivo Calorie:</span>
                   {isEditing ? (
-                    <div className="meal-edit-container">
-                      {currentData.meals[meal.key].recipeId ? (
-                        <div className="attached-recipe-badge">
-                          <span className="badge-icon">📖</span>
-                          <span className="badge-text">{currentData.meals[meal.key].recipeName}</span>
-                          <button className="badge-close" onClick={() => handleRemoveRecipe(meal.key)}>✕</button>
+                    <input 
+                      type="number" 
+                      placeholder="Imposta kcal" 
+                      className="input-description mini-input"
+                      value={currentData.targetCalories || ''}
+                      onChange={e => handleChange('targetCalories', e.target.value)}
+                    />
+                  ) : (
+                    <strong>{currentData.targetCalories ? `${currentData.targetCalories} kcal` : 'Non impostato'}</strong>
+                  )}
+                </label>
+              </div>
+
+              <div className="goals-summary mt-3">
+                <div className="goal-metric">
+                  <span className="metric-label">Calorie Attuali:</span>
+                  <span className="metric-value">{dayMacros.calories} / {currentData.targetCalories || '—'} kcal</span>
+                </div>
+                
+                {/* Barra di Progresso */}
+                <div className="progress-container mt-2">
+                  <div className="progress-bar" style={{ width: `${dayProgressPct}%` }}></div>
+                </div>
+
+                <div className="macronutrients-grid mt-3">
+                  <div className="macro-item">🥩 <strong>{dayMacros.protein}g</strong><br/><span>Proteine</span></div>
+                  <div className="macro-item">🍞 <strong>{dayMacros.carbs}g</strong><br/><span>Carboidrati</span></div>
+                  <div className="macro-item">🥑 <strong>{dayMacros.fat}g</strong><br/><span>Grassi</span></div>
+                </div>
+              </div>
+            </div>
+
+            {/* ===== LISTA DEI PASTI ===== */}
+            <div className="meals-list">
+              {MEALS.map(meal => {
+                const mealData = currentData.meals[meal.key] || { text: '', targetCalories: '', recipes: [] }
+                const mealMacros = getMealMacros(mealData)
+                const targetMealCal = mealData.targetCalories ? parseFloat(mealData.targetCalories) : 0
+                const mealProgressPct = targetMealCal > 0 ? Math.min(100, (mealMacros.calories / targetMealCal) * 100) : 0
+
+                return (
+                  <div key={meal.key} className="meal-card">
+                    <div className="meal-header" style={{ justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="meal-icon">{meal.icon}</span>
+                        <span className="meal-label">{meal.label}</span>
+                      </div>
+                      
+                      {/* Obiettivo pasto */}
+                      <div className="meal-goal-indicator">
+                        {isEditing ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontSize: '0.8rem' }}>Target:</span>
+                            <input 
+                              type="number" 
+                              placeholder="kcal"
+                              className="input-description mini-input"
+                              style={{ width: '65px', padding: '2px 4px', fontSize: '0.8rem' }}
+                              value={mealData.targetCalories || ''}
+                              onChange={e => {
+                                const val = e.target.value
+                                setTempData(prev => ({
+                                  ...prev,
+                                  meals: {
+                                    ...prev.meals,
+                                    [meal.key]: { ...prev.meals[meal.key], targetCalories: val }
+                                  }
+                                }))
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          mealData.targetCalories && <span className="text-secondary text-sm">Target: {mealData.targetCalories} kcal</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Riepilogo nutrizionale del singolo pasto */}
+                    <div className="meal-nutri-summary mt-2">
+                      <div className="meal-nutri-cals">
+                        🔥 <strong>{mealMacros.calories} kcal</strong> {mealData.targetCalories ? `di ${mealData.targetCalories}` : ''}
+                      </div>
+                      {targetMealCal > 0 && (
+                        <div className="progress-container mini-progress mt-1">
+                          <div className="progress-bar" style={{ width: `${mealProgressPct}%` }}></div>
                         </div>
-                      ) : (
+                      )}
+                      <div className="meal-nutri-macros mt-1">
+                        <span>🥩 {mealMacros.protein}g</span>
+                        <span>🍞 {mealMacros.carbs}g</span>
+                        <span>🥑 {mealMacros.fat}g</span>
+                      </div>
+                    </div>
+
+                    {isEditing ? (
+                      <div className="meal-edit-container mt-3">
+                        {/* Elenco ricette associate con pulsante di rimozione */}
+                        {(mealData.recipes || []).length > 0 && (
+                          <div className="attached-recipes-list mb-2">
+                            {mealData.recipes.map(rRef => (
+                              <div key={rRef.id} className="attached-recipe-badge">
+                                <span className="badge-icon">📖</span>
+                                <span className="badge-text">{rRef.name}</span>
+                                <button className="badge-close" onClick={() => handleRemoveRecipe(meal.key, rRef.id)}>✕</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         <button className="btn btn--edit small-py mb-2 w-full" onClick={() => setSelectingMealKey(meal.key)}>
                           + Aggiungi dal Ricettario
                         </button>
-                      )}
-                      
-                      <textarea
-                        className="input-meal"
-                        placeholder={`Note manuali per ${meal.label.toLowerCase()}...`}
-                        value={currentData.meals[meal.key].text || ''}
-                        onChange={e => handleMealChangeText(meal.key, e.target.value)}
-                        rows={2}
-                      />
-                    </div>
-                  ) : (
-                    <div className="meal-content">
-                      {currentData.meals[meal.key].recipeId && (
-                        <div className="recipe-link" onClick={() => handleViewRecipe(currentData.meals[meal.key].recipeId)}>
-                          <span className="recipe-link-icon">📖</span> Apri ricetta: <strong>{currentData.meals[meal.key].recipeName}</strong>
-                        </div>
-                      )}
-                      {currentData.meals[meal.key].text ? (
-                        <p className="meal-text-note mt-2">{currentData.meals[meal.key].text}</p>
-                      ) : (
-                        !currentData.meals[meal.key].recipeId && <span className="placeholder-text">Non ancora pianificato</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
+                        
+                        <textarea
+                          className="input-meal"
+                          placeholder={`Note manuali per ${meal.label.toLowerCase()}...`}
+                          value={mealData.text || ''}
+                          onChange={e => handleMealChangeText(meal.key, e.target.value)}
+                          rows={2}
+                        />
+                      </div>
+                    ) : (
+                      <div className="meal-content mt-3">
+                        {/* Mostra solo emoji 📖 senza scritta */}
+                        {(mealData.recipes || []).length > 0 && (
+                          <div className="recipe-links-container mb-2">
+                            {mealData.recipes.map(rRef => (
+                              <span 
+                                key={rRef.id} 
+                                className="recipe-link-inline-emoji"
+                                onClick={() => handleViewRecipe(rRef.id)}
+                                title={rRef.name}
+                              >
+                                📖 <strong>{rRef.name}</strong>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {mealData.text ? (
+                          <p className="meal-text-note">{mealData.text}</p>
+                        ) : (
+                          (!mealData.recipes || mealData.recipes.length === 0) && <span className="placeholder-text">Non ancora pianificato</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
 
             {/* Pulsanti Save/Cancel Floating (se in edit) */}
@@ -352,20 +561,30 @@ export default function App() {
       {selectingMealKey && (
         <div className="recipe-modal-overlay">
           <div className="recipe-modal day-content">
-            <h2 className="day-name">Scegli una Ricetta</h2>
+            <h2 className="day-name">Scegli per {MEALS.find(m => m.key === selectingMealKey)?.label}</h2>
             <div className="modal-scroll">
               {allRecipes.length === 0 ? (
                 <p className="placeholder-text">Nessuna ricetta salvata. Vai nel Ricettario.</p>
-              ) : (
-                <div className="recipes-grid">
-                  {allRecipes.map(r => (
-                    <div key={r.id} className="meal-card recipe-card selector-card" onClick={() => handleAssignRecipe(r)}>
-                      <h3 className="recipe-name">{r.name}</h3>
-                      <span className="recipe-badge">{r.dishType}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              ) : (() => {
+                // Filtro pertinenza piatti in base al pasto
+                const allowedTypes = MEAL_PERTINENCE[selectingMealKey] || [];
+                const filtered = allRecipes.filter(r => allowedTypes.includes(r.dishType));
+
+                if (filtered.length === 0) {
+                  return <p className="placeholder-text">Nessuna ricetta pertinente trovata ({allowedTypes.join(', ')}).</p>;
+                }
+
+                return (
+                  <div className="recipes-grid">
+                    {filtered.map(r => (
+                      <div key={r.id} className="meal-card recipe-card selector-card" onClick={() => handleAssignRecipe(r)}>
+                        <h3 className="recipe-name">{r.name}</h3>
+                        <span className="recipe-badge">{r.dishType}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
             <div className="action-bar mt-auto">
               <button className="btn btn--cancel" onClick={() => setSelectingMealKey(null)}>✕ Chiudi</button>
