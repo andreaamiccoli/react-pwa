@@ -72,11 +72,14 @@ const normalizeMeals = (data) => {
           recipes = val.recipes.map(r => ({
             id: r.id,
             name: r.name,
-            servings: parseInt(r.servings) || 1
+            servings: parseInt(r.servings) || 1,
+            // Per preservare anche il tipo (se ricetta normale o calcolata dall'AI)
+            type: r.type || 'recipe',
+            nutrition: r.nutrition || null
           }))
         } else if (val.recipeId) {
           // Migra da ricetta singola a array con porzione 1
-          recipes = [{ id: val.recipeId, name: val.recipeName || 'Ricetta', servings: 1 }]
+          recipes = [{ id: val.recipeId, name: val.recipeName || 'Ricetta', servings: 1, type: 'recipe' }]
         }
       }
       
@@ -115,9 +118,18 @@ export default function App() {
   
   // Stato per Recipe Selector e Bottom Sheet
   const [selectingMealKey, setSelectingMealKey] = useState(null)
-  const [viewingRecipe, setViewingRecipe] = useState(null) // ID della ricetta da visualizzare nel bottom sheet
+  const [viewingRecipe, setViewingRecipe] = useState(null) // ID della ricetta o oggetto ricetta temporanea AI
   const [targetServings, setTargetServings] = useState(1)  // Porzioni selezionate nel Bottom Sheet
   const [allRecipes, setAllRecipes]   = useState([])
+
+  // Stato per la stima AI del singolo pasto
+  const [aiMealKey, setAiMealKey] = useState(null) // pasto per cui si vuole usare la stima AI (null = chiuso)
+  const [aiInput, setAiInput] = useState({
+    ingredients: '',
+    condiments: '',
+    cooking: ''
+  })
+  const [aiLoading, setAiLoading] = useState(false)
 
   // Conferme Modali
   const [confirmUnsavedChanges, setConfirmUnsavedChanges] = useState(null) // callback function se true
@@ -206,7 +218,7 @@ export default function App() {
           [selectingMealKey]: { 
             ...prev.meals[selectingMealKey], 
             // Inizializza con 1 porzione per questo pasto
-            recipes: [...existing, { id: recipe.id, name: recipe.name, servings: 1 }] 
+            recipes: [...existing, { id: recipe.id, name: recipe.name, servings: 1, type: 'recipe' }] 
           }
         }
       }
@@ -246,6 +258,100 @@ export default function App() {
     }))
   }
 
+  // Chiamata API Gemini per stimare i valori nutrizionali di un singolo piatto inserito a testo
+  const handleEstimateMealNutrition = async () => {
+    const apiKey = localStorage.getItem('geminiApiKey');
+    if (!apiKey) {
+      showToast("Configura prima l'API Key nelle Impostazioni/Backup!", 'danger');
+      return;
+    }
+    if (!aiInput.ingredients.trim()) {
+      showToast("Descrivi almeno cosa hai mangiato!", 'danger');
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `Analizza questa porzione singola di cibo e restituisci rigorosamente un JSON (senza markdown, backticks o commenti) con i valori nutrizionali stimati per una porzione.
+Cibo e quantità: "${aiInput.ingredients}"
+Condimenti e ingredienti extra: "${aiInput.condiments || 'Nessuno'}"
+Metodo di cottura: "${aiInput.cooking || 'Non specificato'}"
+
+Schema JSON da restituire:
+{
+  "title": "Titolo breve del piatto (max 30 caratteri)",
+  "description": "Breve descrizione (max 100 caratteri) con eventuali note sulle stime fatte",
+  "nutrition": {
+    "calories": 350,
+    "protein": 15,
+    "carbs": 40,
+    "fat": 10
+  }
+}
+Tutti i valori del campo nutrition devono essere numerici o stringa vuota se impossibile stimare.`
+            }]
+          }],
+          generationConfig: { responseMimeType: "application/json" }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Errore nella risposta delle API Gemini.");
+      }
+
+      const resJson = await response.json();
+      let resText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!resText) {
+        throw new Error("Nessuna risposta ricevuta da Gemini.");
+      }
+      resText = resText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const parsedData = JSON.parse(resText);
+
+      // Assegna il piatto stimato all'elenco delle ricette del pasto come record di tipo 'ai_estimate'
+      setTempData(prev => {
+        const existing = prev.meals[aiMealKey].recipes || []
+        const newRecord = {
+          id: 'ai_' + Date.now().toString(),
+          name: parsedData.title || 'Piatto Stimato',
+          servings: 1,
+          type: 'ai_estimate',
+          nutrition: {
+            calories: parsedData.nutrition?.calories || 0,
+            protein: parsedData.nutrition?.protein || 0,
+            carbs: parsedData.nutrition?.carbs || 0,
+            fat: parsedData.nutrition?.fat || 0
+          },
+          description: parsedData.description || 'Piatto stimato con IA'
+        }
+        return {
+          ...prev,
+          meals: {
+            ...prev.meals,
+            [aiMealKey]: {
+              ...prev.meals[aiMealKey],
+              recipes: [...existing, newRecord]
+            }
+          }
+        }
+      });
+
+      setAiMealKey(null);
+      setAiInput({ ingredients: '', condiments: '', cooking: '' });
+      showToast("Nutrizione stimata ed aggiunta con successo!", "success");
+    } catch (err) {
+      console.error(err);
+      showToast("Errore durante la stima: " + err.message, "danger");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
   // Presets load handling (passed to PresetsPage)
   const executePresetLoad = (presetData) => {
     setDietData(presetData);
@@ -266,11 +372,18 @@ export default function App() {
 
   const currentData = isEditing ? tempData : dietData[selectedDay]
   const viewTitle = view === 'calendar' ? 'Dieta Settimanale' : (view === 'recipes' ? 'Ricettario' : (view === 'presets' ? 'Preset' : 'Impostazioni'));
-  const recipeToView = viewingRecipe ? allRecipes.find(r => r.id === viewingRecipe) : null;
+  
+  // Trova o imposta al volo la ricetta / stima da visualizzare nel bottom-sheet
+  const getRecipeToView = () => {
+    if (!viewingRecipe) return null
+    if (typeof viewingRecipe === 'object') return viewingRecipe // Se passiamo direttamente l'oggetto stimato AI
+    return allRecipes.find(r => r.id === viewingRecipe)
+  }
+  const recipeToView = getRecipeToView();
 
   // Apri bottom sheet e inizializza le porzioni al valore salvato nel pasto (oppure 1 se aperto da ricettario generale)
-  const handleViewRecipe = (id, currentServings = 1) => {
-    setViewingRecipe(id);
+  const handleViewRecipe = (recipeOrId, currentServings = 1) => {
+    setViewingRecipe(recipeOrId);
     setTargetServings(currentServings);
   };
 
@@ -290,7 +403,15 @@ export default function App() {
     const total = { calories: 0, protein: 0, carbs: 0, fat: 0 }
     if (!mealData || !mealData.recipes) return total
     mealData.recipes.forEach(rRef => {
-      const fullRecipe = allRecipes.find(r => r.id === rRef.id)
+      let fullRecipe;
+      if (rRef.type === 'ai_estimate') {
+        fullRecipe = {
+          servings: 1,
+          nutrition: rRef.nutrition
+        }
+      } else {
+        fullRecipe = allRecipes.find(r => r.id === rRef.id)
+      }
       const servings = parseInt(rRef.servings) || 1
       const macros = getRecipeMacros(fullRecipe, servings)
       total.calories += macros.calories
@@ -509,9 +630,10 @@ export default function App() {
                           <div className="attached-recipes-list mb-2">
                             {mealData.recipes.map(rRef => {
                               const servings = parseInt(rRef.servings) || 1
+                              const isAi = rRef.type === 'ai_estimate'
                               return (
                                 <div key={rRef.id} className="attached-recipe-badge flex-wrap-mobile">
-                                  <span className="badge-icon">📖</span>
+                                  <span className="badge-icon">{isAi ? '🤖' : '📖'}</span>
                                   <span className="badge-text">{rRef.name}</span>
                                   
                                   {/* Regolatore Porzioni in Linea */}
@@ -533,9 +655,14 @@ export default function App() {
                             })}
                           </div>
                         )}
-                        <button className="btn btn--edit small-py mb-2 w-full" onClick={() => setSelectingMealKey(meal.key)}>
-                          + Aggiungi dal Ricettario
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button className="btn btn--edit small-py mb-2 flex-1" onClick={() => setSelectingMealKey(meal.key)}>
+                            + Ricettario
+                          </button>
+                          <button className="btn btn--edit small-py mb-2 flex-1" style={{ borderColor: 'var(--accent-light)' }} onClick={() => setAiMealKey(meal.key)}>
+                            🤖 Chiedi a IA
+                          </button>
+                        </div>
                         
                         <textarea
                           className="input-meal"
@@ -547,19 +674,20 @@ export default function App() {
                       </div>
                     ) : (
                       <div className="meal-content mt-3">
-                        {/* Mostra emoji 📖, nome ricetta e porzioni assegnate */}
+                        {/* Mostra emoji 📖 o 🤖, nome e porzioni assegnate */}
                         {(mealData.recipes || []).length > 0 && (
                           <div className="recipe-links-container mb-2">
                             {mealData.recipes.map(rRef => {
                               const servings = parseInt(rRef.servings) || 1
+                              const isAi = rRef.type === 'ai_estimate'
                               return (
                                 <span 
                                   key={rRef.id} 
                                   className="recipe-link-inline-emoji"
-                                  onClick={() => handleViewRecipe(rRef.id, servings)}
+                                  onClick={() => handleViewRecipe(isAi ? rRef : rRef.id, servings)}
                                   title={rRef.name}
                                 >
-                                  📖 <strong>{rRef.name}</strong> {servings > 1 && <span className="inline-servings-badge">({servings} porz.)</span>}
+                                  {isAi ? '🤖' : '📖'} <strong>{rRef.name}</strong> {servings > 1 && <span className="inline-servings-badge">({servings} porz.)</span>}
                                 </span>
                               )
                             })}
@@ -637,13 +765,70 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL STIMA NUTRIZIONALE IA PIATTO ESTEMPORANEO */}
+      {aiMealKey && (
+        <div className="recipe-modal-overlay">
+          <div className="recipe-modal day-content">
+            <h2 className="day-name">🤖 Chiedi stima nutrizionale a IA</h2>
+            <p className="servings-hint mb-3" style={{ background: 'rgba(239, 68, 68, 0.05)', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+              ⚠️ <strong>Importante:</strong> Inserisci solo un piatto alla volta. Non sommare più alimenti o pasti completi nella stessa richiesta.
+            </p>
+            <div className="modal-scroll">
+              <label>Cosa hai mangiato? (Cibo e Quantità)</label>
+              <textarea 
+                className="input-description mb-3"
+                rows="2"
+                placeholder="es. Un piatto abbondante di spaghetti, circa 80 grammi di pane..."
+                value={aiInput.ingredients}
+                onChange={e => setAiInput(prev => ({ ...prev, ingredients: e.target.value }))}
+              />
+              
+              <label>Condimenti ed Extra (Olio, burro, zucchero, parmigiano...)</label>
+              <input 
+                type="text"
+                className="input-description mb-3"
+                placeholder="es. Un cucchiaio d'olio d'oliva, una spolverata di parmigiano, 1 cucchiaino di zucchero nel caffè"
+                value={aiInput.condiments}
+                onChange={e => setAiInput(prev => ({ ...prev, condiments: e.target.value }))}
+              />
+
+              <label>Metodo di Cottura (Fritto, al vapore, al forno...)</label>
+              <input 
+                type="text"
+                className="input-description mb-3"
+                placeholder="es. Bollito, grigliato, cotto al forno"
+                value={aiInput.cooking}
+                onChange={e => setAiInput(prev => ({ ...prev, cooking: e.target.value }))}
+              />
+              
+              {aiLoading && (
+                <div className="text-center py-3">
+                  <span className="placeholder-text" style={{ display: 'block', marginBottom: '8px' }}>🤖 L'Intelligenza Artificiale sta calcolando i nutrienti stimati...</span>
+                  <div className="spinner"></div>
+                </div>
+              )}
+            </div>
+            
+            <div className="action-bar mt-auto">
+              <button className="btn btn--save" onClick={handleEstimateMealNutrition} disabled={aiLoading}>
+                ✓ Stima Nutrienti
+              </button>
+              <button className="btn btn--cancel" onClick={() => { setAiMealKey(null); setAiInput({ ingredients: '', condiments: '', cooking: '' }); }} disabled={aiLoading}>
+                Annulla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bottom Sheet Ricetta */}
       {viewingRecipe && (
         <div className="bottom-sheet-overlay" onClick={() => setViewingRecipe(null)}>
           <div className="bottom-sheet" onClick={e => e.stopPropagation()}>
             <div className="bottom-sheet-drag-handle"></div>
             {recipeToView ? (() => {
-              const baseServings = parseInt(recipeToView.servings) || 1;
+              const isAi = typeof viewingRecipe === 'object' && viewingRecipe.type === 'ai_estimate';
+              const baseServings = isAi ? 1 : (parseInt(recipeToView.servings) || 1);
               const factor = targetServings / baseServings;
               const scaledCals  = scaleNutri(recipeToView.nutrition?.calories, targetServings, baseServings);
               const scaledProt  = scaleNutri(recipeToView.nutrition?.protein,  targetServings, baseServings);
@@ -651,8 +836,10 @@ export default function App() {
               const scaledFat   = scaleNutri(recipeToView.nutrition?.fat,      targetServings, baseServings);
               return (
                 <div className="bottom-sheet-content">
-                  <h2 className="recipe-name mb-2">{recipeToView.name}</h2>
-                  <span className="recipe-badge mb-3 inline-block">{recipeToView.dishType}</span>
+                  <h2 className="recipe-name mb-2">{isAi ? viewingRecipe.name : recipeToView.name}</h2>
+                  <span className="recipe-badge mb-3 inline-block">
+                    {isAi ? 'Stima Istantanea IA 🤖' : recipeToView.dishType}
+                  </span>
 
                   {/* Selettore Porzioni */}
                   <div className="servings-selector mb-3">
@@ -676,34 +863,43 @@ export default function App() {
                     <span>🥑 {scaledFat || 0}g F</span>
                   </div>
 
-                  {recipeToView.ingredients?.length > 0 && (
+                  {isAi ? (
                     <div className="mb-3">
-                      <h4 className="mb-2 text-accent">Ingredienti</h4>
-                      <ul className="ingredient-list">
-                        {recipeToView.ingredients.map((ing, i) => (
-                          <li key={i}>
-                            <strong>{ing.name}</strong>
-                            <span className="text-secondary">
-                              {scaleQuantity(ing.quantity, targetServings, baseServings)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
+                      <h4 className="mb-2 text-accent">Dettagli Stima</h4>
+                      <p className="meal-text-note">{viewingRecipe.description}</p>
                     </div>
-                  )}
+                  ) : (
+                    <>
+                      {recipeToView.ingredients?.length > 0 && (
+                        <div className="mb-3">
+                          <h4 className="mb-2 text-accent">Ingredienti</h4>
+                          <ul className="ingredient-list">
+                            {recipeToView.ingredients.map((ing, i) => (
+                              <li key={i}>
+                                <strong>{ing.name}</strong>
+                                <span className="text-secondary">
+                                  {scaleQuantity(ing.quantity, targetServings, baseServings)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
-                  {recipeToView.instructions && (
-                    <div className="mb-3">
-                      <h4 className="mb-2 text-accent">Preparazione</h4>
-                      <p className="meal-text-note">{recipeToView.instructions}</p>
-                    </div>
+                      {recipeToView.instructions && (
+                        <div className="mb-3">
+                          <h4 className="mb-2 text-accent">Preparazione</h4>
+                          <p className="meal-text-note">{recipeToView.instructions}</p>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   <button className="btn btn--cancel w-full mt-3" onClick={() => setViewingRecipe(null)}>Chiudi</button>
                 </div>
               );
             })() : (
-              <p>Ricetta non trovata o eliminata.</p>
+              <p>Ricetta o stima non trovata o eliminata.</p>
             )}
           </div>
         </div>
