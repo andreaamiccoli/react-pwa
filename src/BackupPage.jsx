@@ -127,7 +127,8 @@ export default function BackupPage() {
       <div className="meal-card recipe-card">
         <h3 className="recipe-name text-accent mb-2">🤖 Configurazione IA (Gemini API)</h3>
         <p className="recipe-meta mb-3">
-          Configura una chiave API per abilitare l'importazione intelligente delle ricette tramite screenshot o testo.
+          Configura una o più chiavi API (separate da virgola) per abilitare le funzioni intelligenti. 
+          Usando più chiavi, il sistema le ruoterà automaticamente per aggirare i limiti di utilizzo.
           La chiave rimarrà salvata esclusivamente in questo browser.
           <br />
           <a 
@@ -136,13 +137,13 @@ export default function BackupPage() {
             rel="noopener noreferrer" 
             style={{ color: '#00adb5', textDecoration: 'underline', display: 'inline-block', marginTop: '6px' }}
           >
-            Ottieni una chiave API Gemini gratuita ↗
+            Ottieni le chiavi API Gemini gratuite ↗
           </a>
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <input 
             type="password" 
-            placeholder="Incolla qui la tua API Key Gemini..." 
+            placeholder="Incolla le API Key separate da virgola..." 
             value={apiKey} 
             onChange={e => setApiKey(e.target.value)} 
             className="input-description"

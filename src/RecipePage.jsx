@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getActiveApiKey } from './aiUtils.js';
 
 const MEALS = ['Colazione', 'Spuntino', 'Pranzo', 'Merenda', 'Cena'];
 const DISH_TYPES = ['Primo', 'Secondo', 'Contorno', 'Dolce', 'Snack', 'Bevanda', 'Altro'];
@@ -328,10 +329,12 @@ function AiImportModal({ onClose, onSuccess }) {
   };
 
   const handleAnalyze = async () => {
-    if (!apiKey) {
-      setError("Inserisci una chiave API valida prima di procedere.");
+    const activeKey = getActiveApiKey();
+    if (!activeKey && !apiKey) {
+      setError("Inserisci una o più chiavi API valide prima di procedere.");
       return;
     }
+    const keyToUse = activeKey || apiKey;
     if (!recipeText.trim() && !imageFile) {
       setError("Inserisci del testo o carica uno screenshot della ricetta.");
       return;
@@ -386,7 +389,7 @@ ISTRUZIONI IMPORTANTI PER LE PORZIONI:
 - Nelle "meals" includi solo i pasti adatti a quella ricetta (non includerli tutti, scegli solo quelli appropriati).`
       });
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${keyToUse}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -461,14 +464,19 @@ ISTRUZIONI IMPORTANTI PER LE PORZIONI:
               >
                 Ottieni chiave gratuita su Google AI Studio ↗
               </a>
-              <input 
-                type="password" 
-                placeholder="Incolla API Key Gemini..." 
-                value={tempKey} 
-                onChange={e => setTempKey(e.target.value)} 
-                className="input-description mb-2"
-              />
-              <button className="btn btn--save w-full" onClick={handleSaveTempKey}>Salva Chiave API</button>
+                <div style={{ marginBottom: '16px', background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px' }}>
+                  <p style={{ fontSize: '14px', marginBottom: '8px', color: '#ccc' }}>
+                    Non hai configurato le API Key. Inserisci una o più chiavi separate da virgola per ruotarle.
+                  </p>
+                  <input
+                    type="password"
+                    placeholder="API Key Gemini..."
+                    value={tempKey} 
+                    onChange={e => setTempKey(e.target.value)} 
+                    className="input-description mb-2"
+                  />
+                  <button className="btn btn--save w-full" onClick={handleSaveTempKey}>Salva Chiave API</button>
+                </div>
             </div>
           ) : (
             <>

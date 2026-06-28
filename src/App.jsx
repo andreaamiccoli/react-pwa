@@ -6,6 +6,7 @@ import PresetsPage from './PresetsPage.jsx'
 import BackupPage from './BackupPage.jsx'
 import ToastContainer, { showToast } from './Toast.jsx'
 import ConfirmModal from './ConfirmModal.jsx'
+import { getActiveApiKey, getAiCache, setAiCache } from './aiUtils.js'
 
 // --- Dati di default per la prima apertura ---
 const DAYS = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
@@ -260,9 +261,9 @@ export default function App() {
 
   // Chiamata API Gemini per stimare i valori nutrizionali di un singolo piatto inserito a testo
   const handleEstimateMealNutrition = async () => {
-    const apiKey = localStorage.getItem('geminiApiKey');
+    const apiKey = getActiveApiKey();
     if (!apiKey) {
-      showToast("Configura prima l'API Key nelle Impostazioni/Backup!", 'danger');
+      showToast("Configura prima l'API Key (o le chiavi separate da virgola) nelle Impostazioni!", 'danger');
       return;
     }
     if (!aiInput.ingredients.trim()) {
@@ -272,13 +273,25 @@ export default function App() {
 
     setAiLoading(true);
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `Analizza questa porzione singola di cibo e restituisci rigorosamente un JSON (senza markdown, backticks o commenti) con i valori nutrizionali stimati per una porzione.
+      // Controlla prima in cache
+      const promptKey = `estimate_${aiInput.ingredients.trim().toLowerCase()}_${(aiInput.condiments||'').trim().toLowerCase()}_${(aiInput.cooking||'').trim().toLowerCase()}`;
+      const cachedData = getAiCache(promptKey);
+    
+    let parsedData = null;
+    
+    if (cachedData) {
+      parsedData = cachedData;
+      // Ritardo artificiale per simulare caricamento (feedback visivo)
+      await new Promise(r => setTimeout(r, 600));
+    } else {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: `Analizza questa porzione singola di cibo e restituisci rigorosamente un JSON (senza markdown, backticks o commenti) con i valori nutrizionali stimati per una porzione.
 Cibo e quantità: "${aiInput.ingredients}"
 Condimenti e ingredienti extra: "${aiInput.condiments || 'Nessuno'}"
 Metodo di cottura: "${aiInput.cooking || 'Non specificato'}"
@@ -295,23 +308,33 @@ Schema JSON da restituire:
   }
 }
 Tutti i valori del campo nutrition devono essere numerici o stringa vuota se impossibile stimare.`
-            }]
-          }],
-          generationConfig: { responseMimeType: "application/json" }
-        })
-      });
+              }]
+            }],
+            generationConfig: { responseMimeType: "application/json" }
+          })
+        });
 
-      if (!response.ok) {
-        throw new Error("Errore nella risposta delle API Gemini.");
-      }
+        if (!response.ok) {
+          throw new Error("Errore nella risposta delle API Gemini.");
+        }
 
-      const resJson = await response.json();
-      let resText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!resText) {
-        throw new Error("Nessuna risposta ricevuta da Gemini.");
+        const resJson = await response.json();
+        let resText = resJson.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!resText) {
+          throw new Error("Nessuna risposta ricevuta da Gemini.");
+        }
+        resText = resText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        parsedData = JSON.parse(resText);
+        
+        // Salva in cache
+        setAiCache(promptKey, parsedData);
+      } catch (err) {
+        console.error("Errore AI Estima:", err);
+        showToast("Errore durante la generazione. Riprova.", 'danger');
+        setAiLoading(false);
+        return;
       }
-      resText = resText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      const parsedData = JSON.parse(resText);
+    }
 
       // Assegna il piatto stimato all'elenco delle ricette del pasto come record di tipo 'ai_estimate'
       setTempData(prev => {
