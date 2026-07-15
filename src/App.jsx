@@ -12,11 +12,11 @@ import { getActiveApiKey, getAiCache, setAiCache } from './aiUtils.js'
 const DAYS = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica']
 
 const MEALS = [
-  { key: 'colazione',      label: 'Colazione',           icon: '☕' },
-  { key: 'spuntino',       label: 'Spuntino di Metà Mattina', icon: '🍎' },
-  { key: 'pranzo',         label: 'Pranzo',               icon: '🍽️' },
-  { key: 'merenda',        label: 'Merenda',              icon: '🥪' },
-  { key: 'cena',           label: 'Cena',                 icon: '🌙' },
+  { key: 'colazione',      label: 'Colazione',           icon: '' },
+  { key: 'spuntino',       label: 'Spuntino',            icon: '' },
+  { key: 'pranzo',         label: 'Pranzo',              icon: '' },
+  { key: 'merenda',        label: 'Merenda',             icon: '' },
+  { key: 'cena',           label: 'Cena',                icon: '' },
 ]
 
 // Mappatura per la pertinenza delle ricette per pasto
@@ -114,8 +114,12 @@ export default function App() {
   const [dietData, setDietData]       = useState(loadData)
   const [presets, setPresets]         = useState(loadPresets)
   
-  const [isEditing, setIsEditing]     = useState(false)
+  const [editingSection, setEditingSection] = useState(null)
   const [tempData, setTempData]       = useState(null)
+  
+  // Weekly targets UI
+  const [isSettingTargets, setIsSettingTargets] = useState(false)
+  const [tempTargets, setTempTargets] = useState({})
   
   // Stato per Recipe Selector e Bottom Sheet
   const [selectingMealKey, setSelectingMealKey] = useState(null)
@@ -166,9 +170,9 @@ export default function App() {
 
   // --- Funzioni Navigazione ---
   const handleNavChange = (newView) => {
-    if (isEditing && view === 'calendar' && newView !== 'calendar') {
+    if (editingSection && view === 'calendar' && newView !== 'calendar') {
       setConfirmUnsavedChanges(() => () => {
-        setIsEditing(false);
+        setEditingSection(null);
         setTempData(null);
         setView(newView);
       });
@@ -179,9 +183,9 @@ export default function App() {
 
   // --- Funzioni Calendario UI ---
   const handleSelectDay = (day) => {
-    if (isEditing) {
+    if (editingSection) {
       setConfirmUnsavedChanges(() => () => {
-        setIsEditing(false);
+        setEditingSection(null);
         setTempData(null);
         setSelectedDay(day);
       });
@@ -190,22 +194,70 @@ export default function App() {
     setSelectedDay(day)
   }
 
-  const handleEdit = () => {
+  const handleEditSection = (section) => {
     setTempData(JSON.parse(JSON.stringify(dietData[selectedDay])))
-    setIsEditing(true)
+    setEditingSection(section)
   }
 
-  const handleSave = () => {
+  const handleSaveSection = () => {
     setDietData(prev => ({ ...prev, [selectedDay]: tempData }))
-    setIsEditing(false)
+    setEditingSection(null)
     setTempData(null)
-    showToast('Giorno salvato!', 'success')
+    showToast('Salvataggio completato!', 'success')
   }
 
-  const handleCancel = () => {
-    setIsEditing(false)
+  const handleCancelSection = () => {
+    setEditingSection(null)
     setTempData(null)
   }
+
+  const handleOpenTargets = () => {
+    const currentDayData = dietData[selectedDay];
+    const initialTargets = {};
+    MEALS.forEach(m => {
+      initialTargets[m.key] = currentDayData?.meals?.[m.key]?.targetCalories || '';
+    });
+    setTempTargets(initialTargets);
+    setIsSettingTargets(true);
+  };
+
+  const handleSaveTargets = () => {
+    setDietData(prev => {
+      const newData = { ...prev };
+      const currentDay = { ...newData[selectedDay] };
+      currentDay.meals = { ...currentDay.meals };
+      MEALS.forEach(m => {
+        currentDay.meals[m.key] = {
+          ...currentDay.meals[m.key],
+          targetCalories: tempTargets[m.key]
+        };
+      });
+      newData[selectedDay] = currentDay;
+      return newData;
+    });
+    setIsSettingTargets(false);
+    showToast('Target salvati per ' + selectedDay, 'success');
+  };
+
+  const handleApplyTargetsToWeek = () => {
+    setDietData(prev => {
+      const newData = { ...prev };
+      DAYS.forEach(day => {
+        const d = { ...newData[day] };
+        d.meals = { ...d.meals };
+        MEALS.forEach(m => {
+          d.meals[m.key] = {
+            ...d.meals[m.key],
+            targetCalories: tempTargets[m.key]
+          };
+        });
+        newData[day] = d;
+      });
+      return newData;
+    });
+    setIsSettingTargets(false);
+    showToast('Target applicati a tutta la settimana!', 'success');
+  };
 
   const handleChange = (field, value) => {
     setTempData(prev => ({ ...prev, [field]: value }))
@@ -503,12 +555,7 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
         <button className="nav-btn" onClick={() => setDrawerOpen(true)}>☰</button>
         <h1 className="app-title">{viewTitle}</h1>
         <div className="header-right-action">
-          {view === 'calendar' && !isEditing && (
-            <button className="nav-btn action-icon" onClick={handleEdit}>✏️</button>
-          )}
-          {view === 'calendar' && isEditing && (
-            <button className="nav-btn action-icon text-success" onClick={handleSave}>✓</button>
-          )}
+          {/* Le azioni globali di modifica sono rimosse a favore dell'editing granulare */}
         </div>
       </header>
 
@@ -548,112 +595,98 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
           {/* ===== CONTENUTO DEL GIORNO ===== */}
           <main className="day-content">
             <div className="day-hero">
-              <h2 className="day-name">{selectedDay}</h2>
-              {isEditing ? (
-                <textarea
-                  className="input-description"
-                  placeholder="Aggiungi una nota per questo giorno..."
-                  value={currentData.description}
-                  onChange={e => handleChange('description', e.target.value)}
-                  rows={2}
-                />
-              ) : (
-                <p className="day-description">
-                  {currentData.description || <span className="placeholder-text">Nessuna nota per questo giorno</span>}
-                </p>
-              )}
-            </div>
-
-            {/* ===== VALORI NUTRIZIONALI GIORNALIERI ===== */}
-            <div className="meal-card goals-card mb-4">
-              <div className="goals-header">
-                <span className="goals-title">📊 Fabbisogno Giornaliero</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <h2 className="day-name">{selectedDay}</h2>
+                {editingSection !== 'header' && (
+                  <button className="nav-btn action-icon" onClick={() => handleEditSection('header')}>✏️</button>
+                )}
               </div>
-              <div className="goals-inputs mt-2">
-                <label className="goal-input-label">
-                  <span>Obiettivo Calorie:</span>
-                  {isEditing ? (
+              
+              {editingSection === 'header' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                  <textarea
+                    className="input-description"
+                    placeholder="Aggiungi una nota per questo giorno..."
+                    value={tempData.description}
+                    onChange={e => handleChange('description', e.target.value)}
+                    rows={2}
+                  />
+                  <label className="goal-input-label" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span>Obiettivo Calorie Giorno:</span>
                     <input 
                       type="number" 
                       placeholder="Imposta kcal" 
                       className="input-description mini-input"
-                      value={currentData.targetCalories || ''}
+                      style={{ width: '100px' }}
+                      value={tempData.targetCalories || ''}
                       onChange={e => handleChange('targetCalories', e.target.value)}
                     />
-                  ) : (
-                    <strong>{currentData.targetCalories ? `${currentData.targetCalories} kcal` : 'Non impostato'}</strong>
-                  )}
-                </label>
-              </div>
+                  </label>
+                  <div className="action-bar" style={{ marginTop: '8px' }}>
+                    <button className="btn btn--cancel" onClick={handleCancelSection}>Annulla</button>
+                    <button className="btn btn--save" onClick={handleSaveSection}>✓ Salva Intestazione</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="day-description">
+                    {currentData.description || <span className="placeholder-text">Nessuna nota per questo giorno</span>}
+                  </p>
+                  
+                  <div className="goals-summary mt-3">
+                    <div className="goal-metric">
+                      <span className="metric-label">Calorie Attuali:</span>
+                      <span className="metric-value">{dayMacros.calories} / {currentData.targetCalories || '—'} kcal</span>
+                    </div>
+                    
+                    <div className="progress-container mt-2">
+                      <div className="progress-bar" style={{ width: `${dayProgressPct}%` }}></div>
+                    </div>
 
-              <div className="goals-summary mt-3">
-                <div className="goal-metric">
-                  <span className="metric-label">Calorie Attuali:</span>
-                  <span className="metric-value">{dayMacros.calories} / {currentData.targetCalories || '—'} kcal</span>
-                </div>
-                
-                {/* Barra di Progresso */}
-                <div className="progress-container mt-2">
-                  <div className="progress-bar" style={{ width: `${dayProgressPct}%` }}></div>
-                </div>
+                    <div className="macronutrients-grid mt-3">
+                      <div className="macro-item">🥩 <strong>{dayMacros.protein}g</strong><br/><span>Proteine</span></div>
+                      <div className="macro-item">🍞 <strong>{dayMacros.carbs}g</strong><br/><span>Carboidrati</span></div>
+                      <div className="macro-item">🥑 <strong>{dayMacros.fat}g</strong><br/><span>Grassi</span></div>
+                    </div>
+                  </div>
+                </>
+              )}
 
-                <div className="macronutrients-grid mt-3">
-                  <div className="macro-item">🥩 <strong>{dayMacros.protein}g</strong><br/><span>Proteine</span></div>
-                  <div className="macro-item">🍞 <strong>{dayMacros.carbs}g</strong><br/><span>Carboidrati</span></div>
-                  <div className="macro-item">🥑 <strong>{dayMacros.fat}g</strong><br/><span>Grassi</span></div>
-                </div>
+              {/* Tasto Imposta Target Pasti */}
+              <div style={{ marginTop: '20px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                <button className="btn btn--edit" onClick={handleOpenTargets} style={{ width: '100%' }}>
+                  🎯 Imposta Target Pasti
+                </button>
               </div>
             </div>
 
             {/* ===== LISTA DEI PASTI ===== */}
             <div className="meals-list">
               {MEALS.map(meal => {
-                const mealData = currentData.meals[meal.key] || { text: '', targetCalories: '', recipes: [] }
+                const mealData = (editingSection === 'meal-' + meal.key ? tempData : currentData).meals[meal.key] || { text: '', targetCalories: '', recipes: [] }
                 const mealMacros = getMealMacros(mealData)
                 const targetMealCal = mealData.targetCalories ? parseFloat(mealData.targetCalories) : 0
                 const mealProgressPct = targetMealCal > 0 ? Math.min(100, (mealMacros.calories / targetMealCal) * 100) : 0
+                
+                const isThisMealEditing = editingSection === 'meal-' + meal.key;
 
                 return (
-                  <div key={meal.key} className="meal-card">
+                  <div key={meal.key} className="meal-card" style={{ position: 'relative' }}>
                     <div className="meal-header" style={{ justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className="meal-icon">{meal.icon}</span>
                         <span className="meal-label">{meal.label}</span>
                       </div>
                       
-                      {/* Obiettivo pasto */}
+                      {/* Obiettivo pasto (Top Right) */}
                       <div className="meal-goal-indicator">
-                        {isEditing ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ fontSize: '0.8rem' }}>Target:</span>
-                            <input 
-                              type="number" 
-                              placeholder="kcal"
-                              className="input-description mini-input"
-                              style={{ width: '65px', padding: '2px 4px', fontSize: '0.8rem' }}
-                              value={mealData.targetCalories || ''}
-                              onChange={e => {
-                                const val = e.target.value
-                                setTempData(prev => ({
-                                  ...prev,
-                                  meals: {
-                                    ...prev.meals,
-                                    [meal.key]: { ...prev.meals[meal.key], targetCalories: val }
-                                  }
-                                }))
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          mealData.targetCalories && <span className="text-secondary text-sm">Target: {mealData.targetCalories} kcal</span>
-                        )}
+                        {mealData.targetCalories && <span className="text-secondary text-sm" style={{ fontWeight: '600' }}>{mealData.targetCalories} kcal</span>}
                       </div>
                     </div>
 
                     {/* Riepilogo nutrizionale del singolo pasto */}
                     <div className="meal-nutri-summary mt-2">
                       <div className="meal-nutri-cals">
-                        🔥 <strong>{mealMacros.calories} kcal</strong> {mealData.targetCalories ? `di ${mealData.targetCalories}` : ''}
+                        🔥 <strong>{mealMacros.calories} kcal</strong>
                       </div>
                       {targetMealCal > 0 && (
                         <div className="progress-container mini-progress mt-1">
@@ -667,7 +700,7 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
                       </div>
                     </div>
 
-                    {isEditing ? (
+                    {isThisMealEditing ? (
                       <div className="meal-edit-container mt-3">
                         {/* Elenco ricette associate con pulsante di rimozione e regolatore porzioni */}
                         {(mealData.recipes || []).length > 0 && (
@@ -715,9 +748,14 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
                           onChange={e => handleMealChangeText(meal.key, e.target.value)}
                           rows={2}
                         />
+
+                        <div className="action-bar" style={{ marginTop: '16px' }}>
+                          <button className="btn btn--cancel" onClick={handleCancelSection}>Annulla</button>
+                          <button className="btn btn--save" onClick={handleSaveSection}>✓ Salva Pasto</button>
+                        </div>
                       </div>
                     ) : (
-                      <div className="meal-content mt-3">
+                      <div className="meal-content mt-3" style={{ paddingBottom: '24px' }}>
                         {/* Mostra emoji 📖 o 🤖, nome e porzioni assegnate */}
                         {(mealData.recipes || []).length > 0 && (
                           <div className="recipe-links-container mb-2">
@@ -742,6 +780,15 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
                         ) : (
                           (!mealData.recipes || mealData.recipes.length === 0) && <span className="placeholder-text">Non ancora pianificato</span>
                         )}
+                        
+                        {/* Pulsante Modifica Singolo Pasto in basso a destra */}
+                        {!editingSection && (
+                          <button 
+                            className="nav-btn action-icon" 
+                            style={{ position: 'absolute', bottom: '12px', right: '12px', opacity: 0.7 }}
+                            onClick={() => handleEditSection('meal-' + meal.key)}
+                          >✏️</button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -749,11 +796,39 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
               })}
             </div>
 
-            {/* Pulsanti Save/Cancel Floating (se in edit) */}
-            {isEditing && (
-              <div className="floating-action-bar">
-                <button className="btn btn--cancel" onClick={handleCancel}>✕ Annulla</button>
-                <button className="btn btn--save" onClick={handleSave}>✓ Salva Giorno</button>
+            {/* Targets Modal */}
+            {isSettingTargets && (
+              <div className="bottom-sheet-overlay" onClick={() => setIsSettingTargets(false)}>
+                <div className="bottom-sheet" onClick={e => e.stopPropagation()}>
+                  <h3 className="confirm-title text-center mt-2 mb-4">Imposta Target Settimanali</h3>
+                  <p className="text-secondary text-center mb-4" style={{ fontSize: '0.9rem' }}>
+                    Definisci le calorie per ogni pasto.
+                  </p>
+                  
+                  <div className="meal-edit-container">
+                    {MEALS.map(m => (
+                      <label key={m.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-input)', padding: '10px 16px', borderRadius: 'var(--radius-sm)' }}>
+                        <span style={{ fontWeight: '500' }}>{m.label}</span>
+                        <input 
+                          type="number"
+                          placeholder="kcal"
+                          className="input-description mini-input"
+                          style={{ width: '80px', margin: 0, padding: '4px 8px' }}
+                          value={tempTargets[m.key]}
+                          onChange={e => setTempTargets(prev => ({ ...prev, [m.key]: e.target.value }))}
+                        />
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="action-bar mt-4">
+                    <button className="btn btn--cancel" onClick={() => setIsSettingTargets(false)}>Annulla</button>
+                    <button className="btn btn--save" onClick={handleSaveTargets}>✓ Salva Giorno</button>
+                  </div>
+                  <button className="btn btn--edit mt-3" style={{ width: '100%' }} onClick={handleApplyTargetsToWeek}>
+                    🌍 Applica a tutta la settimana
+                  </button>
+                </div>
               </div>
             )}
           </main>
