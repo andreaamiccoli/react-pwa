@@ -541,8 +541,8 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
     <div className="app">
       {showSplash && (
         <div className={`splash-screen ${splashFade ? 'fade-out' : ''}`}>
-          <div className="splash-logo"><img src="\public\icon-192.png" alt="DIETAMELO" /></div>
-          <h1 className="splash-title">DIETAMELO</h1>
+          <div className="splash-logo"><img src="C:\Users\andre\Documents\react-pwa\public\icon-192.png" alt="Dietamelo" /></div>
+          <h1 className="splash-title">Dietamelo</h1>
         </div>
       )}
 
