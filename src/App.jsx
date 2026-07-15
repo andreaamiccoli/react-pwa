@@ -448,9 +448,9 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
   };
 
   const handleLoadPresetReq = (presetData) => {
-    if (isEditing) {
+    if (editingSection) {
       setConfirmUnsavedChanges(() => () => {
-        setIsEditing(false);
+        setEditingSection(null);
         setTempData(null);
         executePresetLoad(presetData);
       });
@@ -459,7 +459,7 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
     }
   }
 
-  const currentData = isEditing ? tempData : dietData[selectedDay]
+  const currentData = editingSection ? tempData : dietData[selectedDay]
   const viewTitle = view === 'calendar' ? 'Dieta Settimanale' : (view === 'recipes' ? 'Ricettario' : (view === 'presets' ? 'Preset' : 'Impostazioni'));
   
   // Trova o imposta al volo la ricetta / stima da visualizzare nel bottom-sheet
