@@ -541,8 +541,8 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
     <div className="app">
       {showSplash && (
         <div className={`splash-screen ${splashFade ? 'fade-out' : ''}`}>
-          <div className="splash-logo">🍽️</div>
-          <h1 className="splash-title">DietApp</h1>
+          <div className="splash-logo"><img src="/logo.png" alt="DIETAMELO" /></div>
+          <h1 className="splash-title">DIETAMELO</h1>
         </div>
       )}
 
@@ -655,7 +655,7 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
               {/* Tasto Imposta Target Pasti */}
               <div style={{ marginTop: '20px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
                 <button className="btn btn--edit" onClick={handleOpenTargets} style={{ width: '100%' }}>
-                  🎯 Imposta Target Pasti
+                  Imposta Target Pasti
                 </button>
               </div>
             </div>
@@ -686,7 +686,7 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
                     {/* Riepilogo nutrizionale del singolo pasto */}
                     <div className="meal-nutri-summary mt-2">
                       <div className="meal-nutri-cals">
-                        🔥 <strong>{mealMacros.calories} kcal</strong>
+                        <strong>{mealMacros.calories} kcal</strong>
                       </div>
                       {targetMealCal > 0 && (
                         <div className="progress-container mini-progress mt-1">
@@ -734,10 +734,10 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
                         )}
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button className="btn btn--edit small-py mb-2 flex-1" onClick={() => setSelectingMealKey(meal.key)}>
-                            + Ricettario
+                            Da Ricettario
                           </button>
                           <button className="btn btn--edit small-py mb-2 flex-1" style={{ borderColor: 'var(--accent-light)' }} onClick={() => setAiMealKey(meal.key)}>
-                            🤖 Chiedi a IA
+                            Chiedi a IA
                           </button>
                         </div>
                         
@@ -826,7 +826,7 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
                     <button className="btn btn--save" onClick={handleSaveTargets}>✓ Salva Giorno</button>
                   </div>
                   <button className="btn btn--edit mt-3" style={{ width: '100%' }} onClick={handleApplyTargetsToWeek}>
-                    🌍 Applica a tutta la settimana
+                    Applica a tutta la settimana
                   </button>
                 </div>
               </div>
@@ -888,9 +888,9 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
       {aiMealKey && (
         <div className="recipe-modal-overlay">
           <div className="recipe-modal day-content">
-            <h2 className="day-name">🤖 Chiedi stima nutrizionale a IA</h2>
+            <h2 className="day-name">Chiedi stima nutrizionale a IA</h2>
             <p className="servings-hint mb-3" style={{ background: 'rgba(239, 68, 68, 0.05)', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
-              ⚠️ <strong>Importante:</strong> Inserisci solo un piatto alla volta. Non sommare più alimenti o pasti completi nella stessa richiesta.
+              <strong>Importante:</strong> Inserisci solo un piatto alla volta. Non sommare più alimenti o pasti completi nella stessa richiesta.
             </p>
             <div className="modal-scroll">
               <label>Cosa hai mangiato? (Cibo e Quantità)</label>
@@ -922,7 +922,7 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
               
               {aiLoading && (
                 <div className="text-center py-3">
-                  <span className="placeholder-text" style={{ display: 'block', marginBottom: '8px' }}>🤖 L'Intelligenza Artificiale sta calcolando i nutrienti stimati...</span>
+                  <span className="placeholder-text" style={{ display: 'block', marginBottom: '8px' }}>L'Intelligenza Artificiale sta calcolando i nutrienti stimati...</span>
                   <div className="spinner"></div>
                 </div>
               )}
@@ -957,7 +957,7 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
                 <div className="bottom-sheet-content">
                   <h2 className="recipe-name mb-2">{isAi ? viewingRecipe.name : recipeToView.name}</h2>
                   <span className="recipe-badge mb-3 inline-block">
-                    {isAi ? 'Stima Istantanea IA 🤖' : recipeToView.dishType}
+                    {isAi ? 'Stima Istantanea IA' : recipeToView.dishType}
                   </span>
 
                   {/* Selettore Porzioni */}

@@ -33,7 +33,7 @@ export default function PresetsPage({ presets, setPresets, currentDietData, onLo
     <div className="page-container day-content">
       <div className="presets-header-actions mb-3">
         <button className="btn btn--edit" onClick={handleSaveCurrent}>
-          💾 Salva la settimana attuale
+          Salva la settimana attuale
         </button>
       </div>
 
@@ -46,8 +46,8 @@ export default function PresetsPage({ presets, setPresets, currentDietData, onLo
               <h3 className="recipe-name">{p.name}</h3>
               <p className="recipe-meta mb-2">Preset Settimanale</p>
               <div className="action-bar mt-auto">
-                <button className="btn btn--save small-py" onClick={() => setConfirmLoadId(p.id)}>🔄 Carica</button>
-                <button className="btn btn--cancel small-py" onClick={() => setConfirmDeleteId(p.id)}>🗑️ Elimina</button>
+                <button className="btn btn--save small-py" onClick={() => setConfirmLoadId(p.id)}>Carica</button>
+                <button className="btn btn--cancel small-py" onClick={() => setConfirmDeleteId(p.id)}>Elimina</button>
               </div>
             </div>
           ))

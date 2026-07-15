@@ -19,25 +19,25 @@ export default function Drawer({ isOpen, onClose, currentView, setView }) {
             className={`drawer-item ${currentView === 'calendar' ? 'active' : ''}`}
             onClick={() => navigate('calendar')}
           >
-            📅 Calendario Settimanale
+            Calendario Settimanale
           </button>
           <button 
             className={`drawer-item ${currentView === 'recipes' ? 'active' : ''}`}
             onClick={() => navigate('recipes')}
           >
-            📖 Ricettario
+            Ricettario
           </button>
           <button 
             className={`drawer-item ${currentView === 'presets' ? 'active' : ''}`}
             onClick={() => navigate('presets')}
           >
-            💾 Preset Settimanali
+            Preset Settimanali
           </button>
           <button 
             className={`drawer-item ${currentView === 'backup' ? 'active' : ''}`}
             onClick={() => navigate('backup')}
           >
-            ⚙️ Backup & Impostazioni
+            Backup & Impostazioni
           </button>
         </nav>
       </div>

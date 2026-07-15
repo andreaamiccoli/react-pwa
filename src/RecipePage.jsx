@@ -92,7 +92,7 @@ export default function RecipePage() {
           {showFilters ? 'Nascondi Filtri' : 'Mostra Filtri'}
         </button>
         <button className="btn btn--edit" onClick={() => setShowAiModal(true)}>
-          ⚡ Importa con IA
+          Importa con IA
         </button>
         <button className="btn btn--save" onClick={() => setEditingRecipe({
           name: '', meals: [], dishType: 'Altro', servings: 1, ingredients: [],
@@ -255,7 +255,7 @@ function RecipeModal({ recipe, onSave, onClose }) {
           </div>
           {servings > 1 && (
             <p className="servings-hint mb-3">
-              💡 Inserisci ingredienti e valori nutrizionali totali per {servings} persone. L'app li mostrerà divisi per 1 persona.
+              Inserisci ingredienti e valori nutrizionali totali per {servings} persone. L'app li mostrerà divisi per 1 persona.
             </p>
           )}
 
@@ -502,7 +502,7 @@ ISTRUZIONI IMPORTANTI PER LE PORZIONI:
                   className="btn btn--edit" 
                   onClick={() => document.getElementById('recipe-image-upload').click()}
                 >
-                  📸 {imageFile ? 'Cambia Immagine' : 'Carica Screenshot / Foto'}
+                  {imageFile ? 'Cambia Immagine' : 'Carica Screenshot / Foto'}
                 </button>
                 {imagePreview && (
                   <div style={{ position: 'relative', marginTop: '8px', textAlign: 'center' }}>
@@ -532,7 +532,7 @@ ISTRUZIONI IMPORTANTI PER LE PORZIONI:
 
           {loading && (
             <div className="text-center py-4">
-              <span className="placeholder-text" style={{ display: 'block', marginBottom: '8px' }}>🤖 Analisi e generazione ricetta in corso...</span>
+              <span className="placeholder-text" style={{ display: 'block', marginBottom: '8px' }}>Analisi e generazione ricetta in corso...</span>
               <div className="spinner"></div>
             </div>
           )}
@@ -540,7 +540,7 @@ ISTRUZIONI IMPORTANTI PER LE PORZIONI:
 
         <div className="action-bar mt-auto">
           {apiKey && !loading && (
-            <button className="btn btn--save" onClick={handleAnalyze}>⚡ Analizza con IA</button>
+            <button className="btn btn--save" onClick={handleAnalyze}>Analizza con IA</button>
           )}
           <button className="btn btn--cancel" onClick={onClose} disabled={loading}>Annulla</button>
         </div>

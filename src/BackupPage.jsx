@@ -125,7 +125,7 @@ export default function BackupPage() {
       </div>
 
       <div className="meal-card recipe-card">
-        <h3 className="recipe-name text-accent mb-2">🤖 Configurazione IA (Gemini API)</h3>
+        <h3 className="recipe-name text-accent mb-2">Configurazione IA (Gemini API)</h3>
         <p className="recipe-meta mb-3">
           Configura una o più chiavi API (separate da virgola) per abilitare le funzioni intelligenti. 
           Usando più chiavi, il sistema le ruoterà automaticamente per aggirare i limiti di utilizzo.
