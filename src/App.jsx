@@ -135,6 +135,20 @@ export default function App() {
   // Conferme Modali
   const [confirmUnsavedChanges, setConfirmUnsavedChanges] = useState(null) // callback function se true
 
+  // Splash Screen
+  const [showSplash, setShowSplash] = useState(true)
+  const [splashFade, setSplashFade] = useState(false)
+
+  useEffect(() => {
+    const fadeTimer = setTimeout(() => {
+      setSplashFade(true)
+    }, 1500)
+    const removeTimer = setTimeout(() => {
+      setShowSplash(false)
+    }, 2300)
+    return () => { clearTimeout(fadeTimer); clearTimeout(removeTimer); }
+  }, [])
+
   useEffect(() => {
     localStorage.setItem('dietData', JSON.stringify(dietData))
   }, [dietData])
@@ -473,6 +487,13 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
 
   return (
     <div className="app">
+      {showSplash && (
+        <div className={`splash-screen ${splashFade ? 'fade-out' : ''}`}>
+          <div className="splash-logo">🍽️</div>
+          <h1 className="splash-title">DietApp</h1>
+        </div>
+      )}
+
       {/* ===== NOTIFICHE E NAV ===== */}
       <ToastContainer />
       <Drawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} currentView={view} setView={handleNavChange} />
