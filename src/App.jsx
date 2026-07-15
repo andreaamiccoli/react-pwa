@@ -541,7 +541,7 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
     <div className="app">
       {showSplash && (
         <div className={`splash-screen ${splashFade ? 'fade-out' : ''}`}>
-          <div className="splash-logo">🕋</div>
+          <div className="splash-logo">🍳​</div>
           <h1 className="splash-title">Dietamelo</h1>
         </div>
       )}
