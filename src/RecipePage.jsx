@@ -109,7 +109,7 @@ export default function RecipePage() {
     return (
       <div className="recipe-page">
         <div className="recipe-toolbar">
-          <button className="btn btn--edit" onClick={() => setShowAiModal(true)}>⚡ Importa con IA</button>
+          <button className="btn btn--edit" onClick={() => setShowAiModal(true)}>Importa con IA</button>
           <button className="btn btn--save" onClick={() => setEditingRecipe({
             name: '', meals: [], dishType: 'Altro', servings: 1, ingredients: [],
             nutrition: { calories: '', protein: '', carbs: '', fat: '' }, instructions: '', notes: ''
@@ -151,7 +151,6 @@ export default function RecipePage() {
       </div>
 
       <div className="category-detail-header">
-        <span className="category-detail-icon">{currentCat.icon}</span>
         <h2 className="category-detail-title">{currentCat.label}</h2>
       </div>
 
@@ -480,7 +479,7 @@ ISTRUZIONI IMPORTANTI PER LE PORZIONI:
   return (
     <div className="recipe-modal-overlay" style={{ zIndex: 1100 }}>
       <div className="recipe-modal day-content">
-        <h2 className="day-name">Importa con IA ⚡</h2>
+        <h2 className="day-name">Importa con IA</h2>
         
         <div className="modal-scroll">
           {!apiKey ? (
