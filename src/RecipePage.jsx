@@ -4,6 +4,14 @@ import { getActiveApiKey } from './aiUtils.js';
 const MEALS = ['Colazione', 'Spuntino', 'Pranzo', 'Merenda', 'Cena'];
 const DISH_TYPES = ['Primo', 'Secondo', 'Contorno', 'Dolce', 'Snack', 'Bevanda', 'Altro'];
 
+// Definizione delle 4 categorie principali con mappatura ai pasti del database
+const CATEGORIES = [
+  { key: 'colazioni', label: 'Colazioni',  meals: ['Colazione'],           icon: '☕' },
+  { key: 'snack',     label: 'Snack',       meals: ['Spuntino', 'Merenda'], icon: '🍎' },
+  { key: 'pranzi',    label: 'Pranzi',      meals: ['Pranzo'],              icon: '🍽️' },
+  { key: 'cene',      label: 'Cene',        meals: ['Cena'],                icon: '🌙' },
+];
+
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
 const loadRecipes = () => {
@@ -40,23 +48,24 @@ const scaleQuantity = (quantityStr, targetServings, baseServings) => {
 
 export default function RecipePage() {
   const [recipes, setRecipes] = useState(loadRecipes);
-  
-  // Filtri
-  const [filterMeal, setFilterMeal] = useState('');
-  const [filterDish, setFilterDish] = useState('');
-  const [filterIngredient, setFilterIngredient] = useState('');
-  const [filterMaxCals, setFilterMaxCals] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
 
-  // Modal stato (null = chiuso, object = editing)
+  // Vista attiva: null = griglia categorie, altrimenti chiave categoria
+  const [selectedCategory, setSelectedCategory] = useState(null);
+
+  // Filtri (solo nella vista dettaglio)
+  const [filterDish, setFilterDish]             = useState('');
+  const [filterIngredient, setFilterIngredient] = useState('');
+  const [filterMaxCals, setFilterMaxCals]       = useState('');
+  const [showFilters, setShowFilters]           = useState(false);
+
+  // Modal
   const [editingRecipe, setEditingRecipe] = useState(null);
-  const [showAiModal, setShowAiModal] = useState(false);
+  const [showAiModal, setShowAiModal]     = useState(false);
 
   useEffect(() => {
     localStorage.setItem('recipeData', JSON.stringify(recipes));
   }, [recipes]);
 
-  // Handler salvataggio
   const handleSaveRecipe = (recipeData) => {
     if (recipeData.id) {
       setRecipes(prev => prev.map(r => r.id === recipeData.id ? recipeData : r));
@@ -67,86 +76,122 @@ export default function RecipePage() {
   };
 
   const handleDeleteRecipe = (id) => {
-    if (window.confirm("Vuoi davvero eliminare questa ricetta?")) {
+    if (window.confirm('Vuoi davvero eliminare questa ricetta?')) {
       setRecipes(prev => prev.filter(r => r.id !== id));
     }
   };
 
-  // Applicazione filtri
+  const activeMeals = selectedCategory
+    ? (CATEGORIES.find(c => c.key === selectedCategory)?.meals ?? [])
+    : [];
+
   const filteredRecipes = recipes.filter(r => {
-    if (filterMeal && !r.meals.includes(filterMeal)) return false;
+    if (selectedCategory && !r.meals.some(m => activeMeals.includes(m))) return false;
     if (filterDish && r.dishType !== filterDish) return false;
     if (filterIngredient) {
       const term = filterIngredient.toLowerCase();
-      const hasIng = r.ingredients.some(ing => ing.name.toLowerCase().includes(term));
-      if (!hasIng) return false;
+      if (!r.ingredients.some(ing => ing.name.toLowerCase().includes(term))) return false;
     }
     if (filterMaxCals && r.nutrition.calories > parseInt(filterMaxCals)) return false;
     return true;
   });
 
+  const resetFilters = () => { setFilterDish(''); setFilterIngredient(''); setFilterMaxCals(''); };
+
+  const handleBack = () => {
+    setSelectedCategory(null);
+    setShowFilters(false);
+    resetFilters();
+  };
+
+  // ── VISTA PRINCIPALE: Griglia 2×2 ──
+  if (!selectedCategory) {
+    return (
+      <div className="recipe-page">
+        <div className="recipe-toolbar">
+          <button className="btn btn--edit" onClick={() => setShowAiModal(true)}>⚡ Importa con IA</button>
+          <button className="btn btn--save" onClick={() => setEditingRecipe({
+            name: '', meals: [], dishType: 'Altro', servings: 1, ingredients: [],
+            nutrition: { calories: '', protein: '', carbs: '', fat: '' }, instructions: '', notes: ''
+          })}>+ Nuova</button>
+        </div>
+
+        <div className="recipe-categories-grid">
+          {CATEGORIES.map(cat => {
+            const count = recipes.filter(r => r.meals.some(m => cat.meals.includes(m))).length;
+            return (
+              <button key={cat.key} className="category-card" onClick={() => setSelectedCategory(cat.key)}>
+                <span className="category-card__icon">{cat.icon}</span>
+                <span className="category-card__label">{cat.label}</span>
+                <span className="category-card__count">{count} {count === 1 ? 'ricetta' : 'ricette'}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {editingRecipe && (
+          <RecipeModal recipe={editingRecipe} onSave={handleSaveRecipe} onClose={() => setEditingRecipe(null)} />
+        )}
+        {showAiModal && (
+          <AiImportModal onClose={() => setShowAiModal(false)} onSuccess={(data) => setEditingRecipe(data)} />
+        )}
+      </div>
+    );
+  }
+
+  // ── VISTA DETTAGLIO CATEGORIA ──
+  const currentCat = CATEGORIES.find(c => c.key === selectedCategory);
   return (
     <div className="recipe-page">
       <div className="recipe-toolbar">
+        <button className="btn btn--cancel" onClick={handleBack}>← Indietro</button>
         <button className="btn btn--edit" onClick={() => setShowFilters(!showFilters)}>
-          {showFilters ? 'Nascondi Filtri' : 'Mostra Filtri'}
+          {showFilters ? 'Nascondi Filtri' : 'Filtri'}
         </button>
-        <button className="btn btn--edit" onClick={() => setShowAiModal(true)}>
-          Importa con IA
-        </button>
-        <button className="btn btn--save" onClick={() => setEditingRecipe({
-          name: '', meals: [], dishType: 'Altro', servings: 1, ingredients: [],
-          nutrition: { calories: '', protein: '', carbs: '', fat: '' }, instructions: '', notes: ''
-        })}>
-          + Nuova
-        </button>
+      </div>
+
+      <div className="category-detail-header">
+        <span className="category-detail-icon">{currentCat.icon}</span>
+        <h2 className="category-detail-title">{currentCat.label}</h2>
       </div>
 
       {showFilters && (
         <div className="recipe-filters day-hero">
-          <select value={filterMeal} onChange={e => setFilterMeal(e.target.value)} className="input-description">
-            <option value="">Qualsiasi Pasto</option>
-            {MEALS.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <select value={filterDish} onChange={e => setFilterDish(e.target.value)} className="input-description mt-2">
+          <select value={filterDish} onChange={e => setFilterDish(e.target.value)} className="input-description">
             <option value="">Qualsiasi Tipo Piatto</option>
             {DISH_TYPES.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
-          <input 
-            type="text" placeholder="Cerca Ingrediente..." 
+          <input
+            type="text" placeholder="Cerca Ingrediente..."
             value={filterIngredient} onChange={e => setFilterIngredient(e.target.value)}
             className="input-description mt-2"
           />
-          <input 
-            type="number" placeholder="Max Calorie (per porzione)..." 
+          <input
+            type="number" placeholder="Max Calorie (per porzione)..."
             value={filterMaxCals} onChange={e => setFilterMaxCals(e.target.value)}
             className="input-description mt-2"
           />
-          <button className="btn btn--cancel mt-2" onClick={() => {
-            setFilterMeal(''); setFilterDish(''); setFilterIngredient(''); setFilterMaxCals('');
-          }}>Reset Filtri</button>
+          <button className="btn btn--cancel mt-2" onClick={resetFilters}>Reset Filtri</button>
         </div>
       )}
 
       <div className="recipes-grid">
         {filteredRecipes.length === 0 ? (
-          <p className="placeholder-text mt-4 text-center">Nessuna ricetta trovata.</p>
+          <p className="placeholder-text mt-4 text-center">Nessuna ricetta in questa categoria.</p>
         ) : (
           filteredRecipes.map(r => {
-            const base = parseInt(r.servings) || 1;
-            // Mostra sempre i valori per 1 porzione nella card
-            const cals1  = scaleNutri(r.nutrition?.calories, 1, base);
-            const prot1  = scaleNutri(r.nutrition?.protein,  1, base);
-            const carbs1 = scaleNutri(r.nutrition?.carbs,    1, base);
-            const fat1   = scaleNutri(r.nutrition?.fat,      1, base);
+            const base  = parseInt(r.servings) || 1;
+            const cals1 = scaleNutri(r.nutrition?.calories, 1, base);
+            const prot1 = scaleNutri(r.nutrition?.protein,  1, base);
+            const carbs1 = scaleNutri(r.nutrition?.carbs,   1, base);
+            const fat1  = scaleNutri(r.nutrition?.fat,      1, base);
             return (
               <div key={r.id} className="meal-card recipe-card">
                 <div className="recipe-header">
-                  <h3 className="recipe-name">{r.name || "Senza Nome"}</h3>
+                  <h3 className="recipe-name">{r.name || 'Senza Nome'}</h3>
                   <span className="recipe-badge">{r.dishType}</span>
                 </div>
                 <p className="recipe-meta">{r.meals.join(', ')}</p>
-                
                 <div className="recipe-nutri mt-2">
                   <span>🔥 {cals1 || 0} kcal</span>
                   <span>🥩 {prot1 || 0}g P</span>
@@ -156,7 +201,6 @@ export default function RecipePage() {
                 {base > 1 && (
                   <p className="recipe-servings-note">Valori per 1 porzione (ricetta base: {base} porzioni)</p>
                 )}
-                
                 <div className="recipe-actions mt-3">
                   <button className="btn btn--edit small-btn" onClick={() => setEditingRecipe({...r})}>✏️</button>
                   <button className="btn btn--cancel small-btn" onClick={() => handleDeleteRecipe(r.id)}>🗑️</button>
@@ -168,18 +212,7 @@ export default function RecipePage() {
       </div>
 
       {editingRecipe && (
-        <RecipeModal 
-          recipe={editingRecipe} 
-          onSave={handleSaveRecipe} 
-          onClose={() => setEditingRecipe(null)} 
-        />
-      )}
-
-      {showAiModal && (
-        <AiImportModal 
-          onClose={() => setShowAiModal(false)} 
-          onSuccess={(data) => setEditingRecipe(data)} 
-        />
+        <RecipeModal recipe={editingRecipe} onSave={handleSaveRecipe} onClose={() => setEditingRecipe(null)} />
       )}
     </div>
   );
