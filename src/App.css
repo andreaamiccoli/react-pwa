@@ -641,10 +641,11 @@ body {
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-end;
-  padding: 20px 20px 24px;
-  min-height: 170px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 28px 16px 24px;
+  min-height: 160px;
   background: var(--bg-card);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -655,7 +656,6 @@ body {
               box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
               background 0.22s;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  text-align: left;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -664,14 +664,8 @@ body {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
 }
 
-.category-card__icon {
-  font-size: 2rem;
-  margin-bottom: 12px;
-  display: block;
-}
-
 .category-card__label {
-  font-size: 1.45rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.02em;
@@ -679,12 +673,22 @@ body {
   display: block;
 }
 
-.category-card__count {
+.category-card__subtitle {
   font-size: 0.78rem;
   color: var(--text-secondary);
-  font-weight: 500;
-  margin-top: 6px;
+  font-weight: 400;
+  margin-top: 5px;
   display: block;
+}
+
+.category-card__count {
+  font-size: 0.72rem;
+  color: var(--accent);
+  font-weight: 600;
+  margin-top: 10px;
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 /* Intestazione vista dettaglio categoria */
@@ -692,11 +696,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 16px 16px 8px;
-}
-
-.category-detail-icon {
-  font-size: 1.5rem;
+  padding: 16px 16px 4px;
 }
 
 .category-detail-title {
@@ -706,6 +706,155 @@ body {
   letter-spacing: -0.02em;
 }
 
+/* ============================================
+   RICETTARIO – GRIGLIA E-COMMERCE
+   ============================================ */
+.recipes-ecom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 12px 16px 32px;
+}
+
+.recipe-ecom-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.2,0.8,0.2,1), box-shadow 0.2s;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+
+.recipe-ecom-card:active {
+  transform: scale(0.97);
+}
+
+.recipe-ecom-image {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: rgba(0,0,0,0.15);
+  flex-shrink: 0;
+}
+
+.recipe-ecom-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.recipe-ecom-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  background: rgba(255,235,210,0.04);
+  color: var(--text-muted);
+}
+
+.recipe-ecom-body {
+  padding: 10px 10px 6px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.recipe-ecom-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.recipe-ecom-ingredients {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.recipe-ecom-nutri {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: auto;
+  padding-top: 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--accent-light);
+}
+
+.recipe-ecom-actions {
+  display: flex;
+  border-top: 1px solid var(--border);
+}
+
+.recipe-ecom-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 8px 0;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.recipe-ecom-btn:last-child {
+  border-right: none;
+}
+
+.recipe-ecom-btn:active {
+  background: rgba(255,255,255,0.05);
+}
+
+.recipe-ecom-btn--danger:active {
+  color: var(--danger);
+}
+
+/* Upload immagine nel modale */
+.recipe-image-upload-area {
+  width: 100%;
+}
+
+.recipe-image-upload-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 130px;
+  border: 2px dashed var(--border-focus);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.2s;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  gap: 8px;
+}
+
+.recipe-image-upload-placeholder:active {
+  background: rgba(216,140,125,0.07);
+}
 
 /* Modal */
 .recipe-modal-overlay {

@@ -6,10 +6,10 @@ const DISH_TYPES = ['Primo', 'Secondo', 'Contorno', 'Dolce', 'Snack', 'Bevanda',
 
 // Definizione delle 4 categorie principali con mappatura ai pasti del database
 const CATEGORIES = [
-  { key: 'colazioni', label: 'Colazioni',  meals: ['Colazione'],           icon: '☕' },
-  { key: 'snack',     label: 'Snack',       meals: ['Spuntino', 'Merenda'], icon: '🍎' },
-  { key: 'pranzi',    label: 'Pranzi',      meals: ['Pranzo'],              icon: '🍽️' },
-  { key: 'cene',      label: 'Cene',        meals: ['Cena'],                icon: '🌙' },
+  { key: 'colazioni', label: 'Colazioni',  subtitle: 'Ricette per iniziare la giornata', meals: ['Colazione'] },
+  { key: 'snack',     label: 'Snack',       subtitle: 'Spuntini e merende leggere',       meals: ['Spuntino', 'Merenda'] },
+  { key: 'pranzi',    label: 'Pranzi',      subtitle: 'Pasti principali di mezzogiorno',  meals: ['Pranzo'] },
+  { key: 'cene',      label: 'Cene',        subtitle: 'Ricette per la sera',              meals: ['Cena'] },
 ];
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -53,14 +53,14 @@ export default function RecipePage() {
   const [selectedCategory, setSelectedCategory] = useState(null);
 
   // Filtri (solo nella vista dettaglio)
-  const [filterDish, setFilterDish]             = useState('');
   const [filterIngredient, setFilterIngredient] = useState('');
   const [filterMaxCals, setFilterMaxCals]       = useState('');
   const [showFilters, setShowFilters]           = useState(false);
 
   // Modal
-  const [editingRecipe, setEditingRecipe] = useState(null);
-  const [showAiModal, setShowAiModal]     = useState(false);
+  const [editingRecipe, setEditingRecipe]   = useState(null);
+  const [viewingRecipe, setViewingRecipe]   = useState(null);
+  const [showAiModal, setShowAiModal]       = useState(false);
 
   useEffect(() => {
     localStorage.setItem('recipeData', JSON.stringify(recipes));
@@ -87,7 +87,6 @@ export default function RecipePage() {
 
   const filteredRecipes = recipes.filter(r => {
     if (selectedCategory && !r.meals.some(m => activeMeals.includes(m))) return false;
-    if (filterDish && r.dishType !== filterDish) return false;
     if (filterIngredient) {
       const term = filterIngredient.toLowerCase();
       if (!r.ingredients.some(ing => ing.name.toLowerCase().includes(term))) return false;
@@ -96,7 +95,7 @@ export default function RecipePage() {
     return true;
   });
 
-  const resetFilters = () => { setFilterDish(''); setFilterIngredient(''); setFilterMaxCals(''); };
+  const resetFilters = () => { setFilterIngredient(''); setFilterMaxCals(''); };
 
   const handleBack = () => {
     setSelectedCategory(null);
@@ -121,8 +120,8 @@ export default function RecipePage() {
             const count = recipes.filter(r => r.meals.some(m => cat.meals.includes(m))).length;
             return (
               <button key={cat.key} className="category-card" onClick={() => setSelectedCategory(cat.key)}>
-                <span className="category-card__icon">{cat.icon}</span>
                 <span className="category-card__label">{cat.label}</span>
+                <span className="category-card__subtitle">{cat.subtitle}</span>
                 <span className="category-card__count">{count} {count === 1 ? 'ricetta' : 'ricette'}</span>
               </button>
             );
@@ -156,14 +155,10 @@ export default function RecipePage() {
 
       {showFilters && (
         <div className="recipe-filters day-hero">
-          <select value={filterDish} onChange={e => setFilterDish(e.target.value)} className="input-description">
-            <option value="">Qualsiasi Tipo Piatto</option>
-            {DISH_TYPES.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
           <input
-            type="text" placeholder="Cerca Ingrediente..."
+            type="text" placeholder="Cerca per ingrediente..."
             value={filterIngredient} onChange={e => setFilterIngredient(e.target.value)}
-            className="input-description mt-2"
+            className="input-description"
           />
           <input
             type="number" placeholder="Max Calorie (per porzione)..."
@@ -174,9 +169,10 @@ export default function RecipePage() {
         </div>
       )}
 
-      <div className="recipes-grid">
+      {/* Griglia e-commerce 2 colonne */}
+      <div className="recipes-ecom-grid">
         {filteredRecipes.length === 0 ? (
-          <p className="placeholder-text mt-4 text-center">Nessuna ricetta in questa categoria.</p>
+          <p className="placeholder-text mt-4 text-center" style={{ gridColumn: '1 / -1' }}>Nessuna ricetta in questa categoria.</p>
         ) : (
           filteredRecipes.map(r => {
             const base  = parseInt(r.servings) || 1;
@@ -184,25 +180,34 @@ export default function RecipePage() {
             const prot1 = scaleNutri(r.nutrition?.protein,  1, base);
             const carbs1 = scaleNutri(r.nutrition?.carbs,   1, base);
             const fat1  = scaleNutri(r.nutrition?.fat,      1, base);
+            // Prime 3 ingredienti per il sottotitolo
+            const ingredientPreview = (r.ingredients || []).slice(0, 3).map(i => i.name).filter(Boolean).join(', ');
             return (
-              <div key={r.id} className="meal-card recipe-card">
-                <div className="recipe-header">
-                  <h3 className="recipe-name">{r.name || 'Senza Nome'}</h3>
-                  <span className="recipe-badge">{r.dishType}</span>
+              <div key={r.id} className="recipe-ecom-card" onClick={() => setViewingRecipe(r)}>
+                {/* Immagine */}
+                <div className="recipe-ecom-image">
+                  {r.image
+                    ? <img src={r.image} alt={r.name} />
+                    : <div className="recipe-ecom-placeholder">🍴</div>
+                  }
                 </div>
-                <p className="recipe-meta">{r.meals.join(', ')}</p>
-                <div className="recipe-nutri mt-2">
-                  <span>🔥 {cals1 || 0} kcal</span>
-                  <span>🥩 {prot1 || 0}g P</span>
-                  <span>🍞 {carbs1 || 0}g C</span>
-                  <span>🥑 {fat1 || 0}g F</span>
+                {/* Corpo */}
+                <div className="recipe-ecom-body">
+                  <h3 className="recipe-ecom-title">{r.name || 'Senza Nome'}</h3>
+                  {ingredientPreview && (
+                    <p className="recipe-ecom-ingredients">{ingredientPreview}{r.ingredients.length > 3 ? '…' : ''}</p>
+                  )}
+                  <div className="recipe-ecom-nutri">
+                    <span>🔥 {cals1 || 0}</span>
+                    <span>P {prot1 || 0}g</span>
+                    <span>C {carbs1 || 0}g</span>
+                    <span>G {fat1 || 0}g</span>
+                  </div>
                 </div>
-                {base > 1 && (
-                  <p className="recipe-servings-note">Valori per 1 porzione (ricetta base: {base} porzioni)</p>
-                )}
-                <div className="recipe-actions mt-3">
-                  <button className="btn btn--edit small-btn" onClick={() => setEditingRecipe({...r})}>✏️</button>
-                  <button className="btn btn--cancel small-btn" onClick={() => handleDeleteRecipe(r.id)}>🗑️</button>
+                {/* Azioni */}
+                <div className="recipe-ecom-actions">
+                  <button className="recipe-ecom-btn" onClick={e => { e.stopPropagation(); setEditingRecipe({...r}); }}>✏️</button>
+                  <button className="recipe-ecom-btn recipe-ecom-btn--danger" onClick={e => { e.stopPropagation(); handleDeleteRecipe(r.id); }}>🗑️</button>
                 </div>
               </div>
             );
@@ -212,6 +217,55 @@ export default function RecipePage() {
 
       {editingRecipe && (
         <RecipeModal recipe={editingRecipe} onSave={handleSaveRecipe} onClose={() => setEditingRecipe(null)} />
+      )}
+
+      {/* Bottom sheet di anteprima ricetta */}
+      {viewingRecipe && (
+        <div className="bottom-sheet-overlay" onClick={() => setViewingRecipe(null)}>
+          <div className="bottom-sheet" onClick={e => e.stopPropagation()} style={{ maxHeight: '80vh', overflowY: 'auto' }}>
+            {viewingRecipe.image && (
+              <img src={viewingRecipe.image} alt={viewingRecipe.name}
+                style={{ width: '100%', height: '180px', objectFit: 'cover', borderRadius: 'var(--radius-md)', marginBottom: '16px' }}
+              />
+            )}
+            <div className="bottom-sheet-handle" />
+            <h3 className="confirm-title" style={{ textAlign: 'left', fontSize: '1.3rem', marginBottom: '4px' }}>{viewingRecipe.name}</h3>
+            <p className="text-secondary" style={{ fontSize: '0.85rem', marginBottom: '12px' }}>{viewingRecipe.meals.join(' · ')}</p>
+            <div className="recipe-nutri mb-3">
+              {(() => {
+                const base = parseInt(viewingRecipe.servings) || 1;
+                return (
+                  <>
+                    <span>🔥 {scaleNutri(viewingRecipe.nutrition?.calories, 1, base) || 0} kcal</span>
+                    <span>P {scaleNutri(viewingRecipe.nutrition?.protein, 1, base) || 0}g</span>
+                    <span>C {scaleNutri(viewingRecipe.nutrition?.carbs, 1, base) || 0}g</span>
+                    <span>G {scaleNutri(viewingRecipe.nutrition?.fat, 1, base) || 0}g</span>
+                  </>
+                );
+              })()}
+            </div>
+            {viewingRecipe.ingredients?.length > 0 && (
+              <>
+                <p style={{ fontWeight: 600, marginBottom: '8px' }}>Ingredienti</p>
+                <ul style={{ paddingLeft: '16px', marginBottom: '12px', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                  {viewingRecipe.ingredients.map((ing, i) => (
+                    <li key={i}>{ing.name}{ing.quantity ? ` — ${ing.quantity}` : ''}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {viewingRecipe.instructions && (
+              <>
+                <p style={{ fontWeight: 600, marginBottom: '8px' }}>Preparazione</p>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '12px' }}>{viewingRecipe.instructions}</p>
+              </>
+            )}
+            <div className="action-bar" style={{ marginTop: '8px' }}>
+              <button className="btn btn--edit" onClick={() => { setEditingRecipe({...viewingRecipe}); setViewingRecipe(null); }}>✏️ Modifica</button>
+              <button className="btn btn--cancel" onClick={() => setViewingRecipe(null)}>Chiudi</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -226,6 +280,14 @@ function RecipeModal({ recipe, onSave, onClose }) {
 
   const handleChange = (field, value) => setFormData(p => ({ ...p, [field]: value }));
   const handleNutriChange = (field, value) => setFormData(p => ({ ...p, nutrition: { ...p.nutrition, [field]: value } }));
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => handleChange('image', reader.result);
+    reader.readAsDataURL(file);
+  };
   
   const toggleMeal = (m) => {
     const meals = formData.meals.includes(m) 
@@ -256,6 +318,21 @@ function RecipeModal({ recipe, onSave, onClose }) {
         <div className="modal-scroll">
           <label>Nome Ricetta</label>
           <input className="input-description mb-3" value={formData.name} onChange={e => handleChange('name', e.target.value)} />
+
+          <label>Foto della Ricetta</label>
+          <div className="recipe-image-upload-area mb-3">
+            {formData.image ? (
+              <div style={{ position: 'relative' }}>
+                <img src={formData.image} alt="Anteprima" style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />
+                <button className="btn btn--cancel small-btn" style={{ position: 'absolute', top: '8px', right: '8px' }} onClick={() => handleChange('image', null)}>✕</button>
+              </div>
+            ) : (
+              <label className="recipe-image-upload-placeholder">
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
+                <span>📷 Aggiungi Foto</span>
+              </label>
+            )}
+          </div>
           
           <label>Tipo Piatto</label>
           <select className="input-description mb-3" value={formData.dishType} onChange={e => handleChange('dishType', e.target.value)}>
