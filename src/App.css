@@ -673,14 +673,6 @@ body {
   display: block;
 }
 
-.category-card__subtitle {
-  font-size: 0.78rem;
-  color: var(--text-secondary);
-  font-weight: 400;
-  margin-top: 5px;
-  display: block;
-}
-
 .category-card__count {
   font-size: 0.72rem;
   color: var(--accent);
@@ -730,6 +722,7 @@ body {
   box-shadow: 0 4px 16px rgba(0,0,0,0.2);
   -webkit-tap-highlight-color: transparent;
   position: relative;
+  min-height: 230px; /* +15% rispetto al base ~200px */
 }
 
 .recipe-ecom-card:active {
@@ -738,7 +731,7 @@ body {
 
 .recipe-ecom-image {
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 11; /* leggermente più alta del precedente 4/3 per guadagnare spazio verticale */
   overflow: hidden;
   background: rgba(0,0,0,0.15);
   flex-shrink: 0;
@@ -767,7 +760,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .recipe-ecom-title {
@@ -792,9 +785,9 @@ body {
 }
 
 .recipe-ecom-nutri {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 6px;
   margin-top: auto;
   padding-top: 6px;
   font-size: 0.68rem;

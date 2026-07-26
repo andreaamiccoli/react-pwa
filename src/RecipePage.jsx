@@ -121,7 +121,6 @@ export default function RecipePage() {
             return (
               <button key={cat.key} className="category-card" onClick={() => setSelectedCategory(cat.key)}>
                 <span className="category-card__label">{cat.label}</span>
-                <span className="category-card__subtitle">{cat.subtitle}</span>
                 <span className="category-card__count">{count} {count === 1 ? 'ricetta' : 'ricette'}</span>
               </button>
             );
@@ -194,14 +193,11 @@ export default function RecipePage() {
                 {/* Corpo */}
                 <div className="recipe-ecom-body">
                   <h3 className="recipe-ecom-title">{r.name || 'Senza Nome'}</h3>
-                  {ingredientPreview && (
-                    <p className="recipe-ecom-ingredients">{ingredientPreview}{r.ingredients.length > 3 ? '…' : ''}</p>
-                  )}
                   <div className="recipe-ecom-nutri">
-                    <span>🔥 {cals1 || 0}</span>
-                    <span>P {prot1 || 0}g</span>
-                    <span>C {carbs1 || 0}g</span>
-                    <span>G {fat1 || 0}g</span>
+                    <span>🔥 {cals1 || 0} kcal</span>
+                    <span>🥩 {prot1 || 0}g P</span>
+                    <span>🍞 {carbs1 || 0}g C</span>
+                    <span>🥑 {fat1 || 0}g G</span>
                   </div>
                 </div>
                 {/* Azioni */}
