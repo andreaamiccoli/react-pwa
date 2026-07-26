@@ -1,4 +1,4 @@
-const CACHE_NAME = 'react-pwa-cache-v14.0.1'; // Aggiornato per API Key rotation e caching AI
+const CACHE_NAME = 'react-pwa-cache-v14.0.2'; // Aggiornato per API Key rotation e caching AI
 
 // File statici stabili da salvare subito in cache
 const PRECACHE_ASSETS = [
