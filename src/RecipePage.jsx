@@ -282,7 +282,7 @@ function RecipeModal({ recipe, onSave, onClose }) {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('ingredients_db');
+      const saved = localStorage.getItem('ingredientsData');
       if (saved) {
         setCustomIngredients(JSON.parse(saved));
       }
@@ -578,17 +578,15 @@ function RecipeModal({ recipe, onSave, onClose }) {
                   value={ing.name} 
                   onChange={e => updateIngredient(i, 'name', e.target.value)} 
                 />
-                {customIngredients.length > 0 && (
-                  <button 
-                    type="button"
-                    className="btn btn--edit small-py" 
-                    style={{ padding: '0 8px', fontSize: '0.8rem' }}
-                    onClick={() => { setShowDbPickerIndex(showDbPickerIndex === i ? null : i); setDbSearch(''); }}
-                    title="Seleziona dal database ingredienti"
-                  >
-                    🔍 DB
-                  </button>
-                )}
+                <button 
+                  type="button"
+                  className="btn btn--edit small-py" 
+                  style={{ padding: '0 8px', fontSize: '0.8rem' }}
+                  onClick={() => { setShowDbPickerIndex(showDbPickerIndex === i ? null : i); setDbSearch(''); }}
+                  title="Seleziona dal database ingredienti"
+                >
+                  🔍 DB
+                </button>
                 {ing.linkedIngId || ing.unit ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1.5 }}>
                     <input 
