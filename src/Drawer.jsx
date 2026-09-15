@@ -22,18 +22,6 @@ export default function Drawer({ isOpen, onClose, currentView, setView }) {
             Calendario Settimanale
           </button>
           <button 
-            className={`drawer-item ${currentView === 'recipes' ? 'active' : ''}`}
-            onClick={() => navigate('recipes')}
-          >
-            Ricettario
-          </button>
-          <button 
-            className={`drawer-item ${currentView === 'presets' ? 'active' : ''}`}
-            onClick={() => navigate('presets')}
-          >
-            Preset Settimanali
-          </button>
-          <button 
             className={`drawer-item ${currentView === 'backup' ? 'active' : ''}`}
             onClick={() => navigate('backup')}
           >

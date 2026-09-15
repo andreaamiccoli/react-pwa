@@ -274,6 +274,21 @@ function RecipeModal({ recipe, onSave, onClose }) {
     ...recipe,
   });
 
+  const [customIngredients, setCustomIngredients] = useState([]);
+  const [showDbPickerIndex, setShowDbPickerIndex] = useState(null);
+  const [dbSearch, setDbSearch] = useState('');
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('ingredients_db');
+      if (saved) {
+        setCustomIngredients(JSON.parse(saved));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   const handleChange = (field, value) => setFormData(p => ({ ...p, [field]: value }));
   const handleNutriChange = (field, value) => setFormData(p => ({ ...p, nutrition: { ...p.nutrition, [field]: value } }));
 
@@ -293,7 +308,7 @@ function RecipeModal({ recipe, onSave, onClose }) {
   };
 
   const handleAddIngredient = () => {
-    handleChange('ingredients', [...formData.ingredients, { name: '', quantity: '' }]);
+    handleChange('ingredients', [...formData.ingredients, { name: '', quantity: '', unit: 'g', rawAmount: '', linkedIngId: null }]);
   };
   const updateIngredient = (index, field, value) => {
     const newIngs = [...formData.ingredients];
@@ -304,7 +319,74 @@ function RecipeModal({ recipe, onSave, onClose }) {
     handleChange('ingredients', formData.ingredients.filter((_, i) => i !== index));
   };
 
+  const selectDbIngredient = (ingIndex, dbIng) => {
+    const newIngs = [...formData.ingredients];
+    const amountNum = parseFloat(newIngs[ingIndex].rawAmount) || parseFloat(newIngs[ingIndex].quantity) || 100;
+    newIngs[ingIndex] = {
+      ...newIngs[ingIndex],
+      name: dbIng.name,
+      unit: dbIng.unit || 'g',
+      rawAmount: amountNum,
+      quantity: `${amountNum} ${dbIng.unit || 'g'}`,
+      linkedIngId: dbIng.id,
+      per100: dbIng.per100
+    };
+    handleChange('ingredients', newIngs);
+    setShowDbPickerIndex(null);
+    setDbSearch('');
+  };
+
+  const handleAmountChange = (index, val) => {
+    const newIngs = [...formData.ingredients];
+    const ing = newIngs[index];
+    ing.rawAmount = val;
+    ing.quantity = val ? `${val} ${ing.unit || 'g'}` : '';
+    handleChange('ingredients', newIngs);
+  };
+
+  const calculateTotalNutritionFromDb = () => {
+    let totalCal = 0, totalProt = 0, totalCarb = 0, totalFat = 0;
+    let foundAny = false;
+
+    formData.ingredients.forEach(ing => {
+      let dbItem = null;
+      if (ing.linkedIngId) {
+        dbItem = customIngredients.find(x => x.id === ing.linkedIngId);
+      } else if (ing.name) {
+        dbItem = customIngredients.find(x => x.name.toLowerCase() === ing.name.trim().toLowerCase());
+      }
+
+      if (dbItem && dbItem.per100) {
+        foundAny = true;
+        const amount = parseFloat(ing.rawAmount) || parseFloat(ing.quantity) || 0;
+        const ratio = amount / 100;
+        totalCal += (dbItem.per100.calories || 0) * ratio;
+        totalProt += (dbItem.per100.protein || 0) * ratio;
+        totalCarb += (dbItem.per100.carbs || 0) * ratio;
+        totalFat += (dbItem.per100.fat || 0) * ratio;
+      }
+    });
+
+    if (!foundAny) {
+      alert("Nessun ingrediente con valori nutrizionali trovato dal tuo database.");
+      return;
+    }
+
+    const mult = parseInt(formData.servings) || 1;
+    setFormData(p => ({
+      ...p,
+      nutrition: {
+        calories: Math.round(totalCal * mult),
+        protein: Math.round(totalProt * mult * 10) / 10,
+        carbs: Math.round(totalCarb * mult * 10) / 10,
+        fat: Math.round(totalFat * mult * 10) / 10
+      }
+    }));
+  };
+
   const servings = parseInt(formData.servings) || 1;
+
+  const filteredDb = customIngredients.filter(x => x.name.toLowerCase().includes(dbSearch.toLowerCase()));
 
   return (
     <div className="recipe-modal-overlay">
@@ -364,7 +446,20 @@ function RecipeModal({ recipe, onSave, onClose }) {
             </p>
           )}
 
-          <label>Valori Nutrizionali {servings > 1 ? `(totali per ${servings} persone)` : '(per 1 persona)'}</label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label>Valori Nutrizionali {servings > 1 ? `(totali per ${servings} persone)` : '(per 1 persona)'}</label>
+            {customIngredients.length > 0 && (
+              <button 
+                type="button"
+                className="btn btn--edit small-py" 
+                style={{ fontSize: '0.75rem', padding: '4px 8px', marginBottom: '4px' }}
+                onClick={calculateTotalNutritionFromDb}
+                title="Calcola i valori totali summing gli ingredienti dal DB"
+              >
+                🧮 Calcola da Ingredienti
+              </button>
+            )}
+          </div>
           <div className="nutri-inputs mb-3">
             <input type="number" placeholder="Kcal" className="input-description" value={formData.nutrition.calories} onChange={e => handleNutriChange('calories', e.target.value)} />
             <input type="number" placeholder="Prot (g)" className="input-description" value={formData.nutrition.protein} onChange={e => handleNutriChange('protein', e.target.value)} />
@@ -383,10 +478,105 @@ function RecipeModal({ recipe, onSave, onClose }) {
 
           <label>Ingredienti {servings > 1 ? `(dosi totali per ${servings} persone)` : '(dosi per 1 persona)'}</label>
           {formData.ingredients.map((ing, i) => (
-            <div key={i} className="ingredient-row mb-2">
-              <input placeholder="Nome" className="input-description flex-2" value={ing.name} onChange={e => updateIngredient(i, 'name', e.target.value)} />
-              <input placeholder="Q.tà" className="input-description flex-1" value={ing.quantity} onChange={e => updateIngredient(i, 'quantity', e.target.value)} />
-              <button className="btn btn--cancel" onClick={() => removeIngredient(i)}>X</button>
+            <div key={i} className="ingredient-row mb-2" style={{ position: 'relative', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '6px', width: '100%' }}>
+                <input 
+                  placeholder="Nome ingrediente" 
+                  className="input-description" 
+                  style={{ flex: 2 }}
+                  value={ing.name} 
+                  onChange={e => updateIngredient(i, 'name', e.target.value)} 
+                />
+                {customIngredients.length > 0 && (
+                  <button 
+                    type="button"
+                    className="btn btn--edit small-py" 
+                    style={{ padding: '0 8px', fontSize: '0.8rem' }}
+                    onClick={() => { setShowDbPickerIndex(showDbPickerIndex === i ? null : i); setDbSearch(''); }}
+                    title="Seleziona dal database ingredienti"
+                  >
+                    🔍 DB
+                  </button>
+                )}
+                {ing.linkedIngId || ing.unit ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1.5 }}>
+                    <input 
+                      type="number"
+                      placeholder="Q.tà"
+                      className="input-description" 
+                      style={{ width: '60px' }}
+                      value={ing.rawAmount !== undefined ? ing.rawAmount : (parseFloat(ing.quantity) || '')} 
+                      onChange={e => handleAmountChange(i, e.target.value)} 
+                    />
+                    <span style={{ fontSize: '0.85rem', color: 'var(--accent)', fontWeight: 600 }}>{ing.unit || 'g'}</span>
+                  </div>
+                ) : (
+                  <input 
+                    placeholder="Q.tà (es. 100g)" 
+                    className="input-description" 
+                    style={{ flex: 1.5 }}
+                    value={ing.quantity} 
+                    onChange={e => updateIngredient(i, 'quantity', e.target.value)} 
+                  />
+                )}
+                <button className="btn btn--cancel" onClick={() => removeIngredient(i)}>X</button>
+              </div>
+
+              {/* Selector Popover dal DB */}
+              {showDbPickerIndex === i && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  zIndex: 20,
+                  background: 'var(--surface-card)',
+                  border: '1px solid var(--accent-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  marginTop: '4px'
+                }}>
+                  <input 
+                    type="text"
+                    placeholder="Cerca ingrediente nel DB..."
+                    className="input-description mb-2"
+                    style={{ fontSize: '0.85rem', padding: '6px 10px' }}
+                    value={dbSearch}
+                    onChange={e => setDbSearch(e.target.value)}
+                    autoFocus
+                  />
+                  <div style={{ maxHeight: '140px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {filteredDb.length > 0 ? (
+                      filteredDb.map(dbIng => (
+                        <div 
+                          key={dbIng.id}
+                          onClick={() => selectDbIngredient(i, dbIng)}
+                          style={{
+                            padding: '6px 8px',
+                            borderRadius: '4px',
+                            background: 'var(--bg-main)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justify: 'space-between',
+                            alignItems: 'center',
+                            fontSize: '0.85rem'
+                          }}
+                        >
+                          <strong>{dbIng.name}</strong>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            {dbIng.per100?.calories || 0} kcal/100{dbIng.unit || 'g'}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', padding: '4px' }}>
+                        Nessun ingrediente trovato
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
           <button className="btn btn--edit mb-3 small-py" onClick={handleAddIngredient}>+ Ingrediente</button>

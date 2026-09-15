@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import RecipePage, { scaleNutri, scaleQuantity } from './RecipePage.jsx'
+import IngredientsPage from './IngredientsPage.jsx'
 import Drawer from './Drawer.jsx'
 import PresetsPage from './PresetsPage.jsx'
 import BackupPage from './BackupPage.jsx'
@@ -460,7 +461,11 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
   }
 
   const currentData = editingSection ? tempData : dietData[selectedDay]
-  const viewTitle = view === 'calendar' ? 'Dieta Settimanale' : (view === 'recipes' ? 'Ricettario' : (view === 'presets' ? 'Preset' : 'Impostazioni'));
+  const viewTitle = view === 'calendar' ? 'Dieta Settimanale'
+    : view === 'recipes'     ? 'Ricettario'
+    : view === 'ingredients' ? 'Ingredienti'
+    : view === 'presets'     ? 'Preset'
+    : 'Impostazioni';
   
   // Trova o imposta al volo la ricetta / stima da visualizzare nel bottom-sheet
   const getRecipeToView = () => {
@@ -573,6 +578,10 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
 
       {view === 'recipes' && (
         <RecipePage />
+      )}
+
+      {view === 'ingredients' && (
+        <IngredientsPage />
       )}
 
       {view === 'calendar' && (
