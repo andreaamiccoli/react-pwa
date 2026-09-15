@@ -78,7 +78,7 @@ export default function IngredientsPage() {
                 <div>
                   <strong style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>{ing.name}</strong>
                   <span style={{ marginLeft: '8px', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                    valori per 100{ing.unit}
+                    {ing.unit === 'unit' ? 'valori per 1 pezzo' : `valori per 100${ing.unit}`}
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: '6px' }}>
@@ -133,7 +133,8 @@ function IngredientModal({ ingredient, onSave, onClose }) {
     setAiError(null);
 
     try {
-      const prompt = `Stima i valori nutrizionali medi per 100${formData.unit} di "${formData.name}".
+      const unitText = formData.unit === 'unit' ? '1 singolo pezzo' : `100${formData.unit}`;
+      const prompt = `Stima i valori nutrizionali medi per ${unitText} di "${formData.name}".
 Rispondi SOLO con un oggetto JSON valido, senza markdown né testo aggiuntivo:
 { "calories": 0, "protein": 0, "carbs": 0, "fat": 0 }
 Usa numeri con al massimo 1 decimale.`;
@@ -190,15 +191,17 @@ Usa numeri con al massimo 1 decimale.`;
 
           {/* Unità */}
           <label>Unità di misura</label>
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '20px' }}>
             {[
-              { val: 'g',  label: '⚖️ Grammi (g)' },
-              { val: 'ml', label: '💧 Millilitri (ml)' },
+              { val: 'g',    label: '⚖️ Grammi (g)' },
+              { val: 'ml',   label: '💧 Millilitri (ml)' },
+              { val: 'unit', label: '🥚 Pezzo (1 uovo/mela)' },
             ].map(u => (
               <button
                 key={u.val}
+                type="button"
                 className={`btn ${formData.unit === u.val ? 'btn--save' : 'btn--edit'}`}
-                style={{ flex: 1 }}
+                style={{ flex: 1, fontSize: '0.78rem', padding: '8px 4px' }}
                 onClick={() => handleChange('unit', u.val)}
               >
                 {u.label}
@@ -208,8 +211,11 @@ Usa numeri con al massimo 1 decimale.`;
 
           {/* Header valori + tasto IA */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <label style={{ margin: 0 }}>Valori per 100{formData.unit}</label>
+            <label style={{ margin: 0 }}>
+              {formData.unit === 'unit' ? 'Valori per 1 singolo pezzo' : `Valori per 100${formData.unit}`}
+            </label>
             <button
+              type="button"
               className="btn btn--edit"
               style={{ flex: '0 0 auto', padding: '6px 14px', fontSize: '0.82rem' }}
               onClick={handleAiEstimate}

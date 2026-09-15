@@ -327,15 +327,18 @@ function RecipeModal({ recipe, onSave, onClose }) {
 
   const selectDbIngredient = (ingIndex, dbIng) => {
     const newIngs = [...formData.ingredients];
-    const amountNum = parseFloat(newIngs[ingIndex].rawAmount) || parseFloat(newIngs[ingIndex].quantity) || 100;
+    const isSingleUnit = dbIng.unit === 'unit';
+    const amountNum = parseFloat(newIngs[ingIndex].rawAmount) || parseFloat(newIngs[ingIndex].quantity) || 1;
+    const unitLabel = isSingleUnit ? 'pezzo' : (dbIng.unit || 'g');
     newIngs[ingIndex] = {
       ...newIngs[ingIndex],
       name: dbIng.name,
-      unit: dbIng.unit || 'g',
+      unit: unitLabel,
       rawAmount: amountNum,
-      quantity: `${amountNum} ${dbIng.unit || 'g'}`,
+      quantity: `${amountNum} ${unitLabel}`,
       linkedIngId: dbIng.id,
-      per100: dbIng.per100
+      per100: dbIng.per100,
+      isSingleUnit: isSingleUnit
     };
     handleChange('ingredients', newIngs);
     setShowDbPickerIndex(null);
@@ -349,7 +352,8 @@ function RecipeModal({ recipe, onSave, onClose }) {
     const newIngs = [...formData.ingredients];
     const ing = newIngs[index];
     ing.rawAmount = val;
-    ing.quantity = val ? `${val} ${ing.unit || 'g'}` : '';
+    const unitLabel = ing.unit || 'g';
+    ing.quantity = val ? `${val} ${unitLabel}` : '';
     handleChange('ingredients', newIngs);
     if (modalMode === 'db') {
       recalculateFromIngredients(newIngs, formData.servings);
@@ -370,7 +374,8 @@ function RecipeModal({ recipe, onSave, onClose }) {
 
       if (dbItem && dbItem.per100) {
         const amount = parseFloat(ing.rawAmount) || parseFloat(ing.quantity) || 0;
-        const ratio = amount / 100;
+        // Se è 'unit' i valori in dbItem.per100 sono riferiti ad 1 singolo pezzo, altrimenti per 100g/ml
+        const ratio = (dbItem.unit === 'unit' || ing.isSingleUnit) ? amount : (amount / 100);
         totalCal += (dbItem.per100.calories || 0) * ratio;
         totalProt += (dbItem.per100.protein || 0) * ratio;
         totalCarb += (dbItem.per100.carbs || 0) * ratio;
@@ -651,7 +656,7 @@ function RecipeModal({ recipe, onSave, onClose }) {
                         >
                           <strong>{dbIng.name}</strong>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            {dbIng.per100?.calories || 0} kcal/100{dbIng.unit || 'g'}
+                            {dbIng.per100?.calories || 0} kcal/{dbIng.unit === 'unit' ? 'pezzo' : `100${dbIng.unit || 'g'}`}
                           </span>
                         </div>
                       ))
