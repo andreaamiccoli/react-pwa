@@ -274,6 +274,8 @@ function RecipeModal({ recipe, onSave, onClose }) {
     ...recipe,
   });
 
+  // Modalità: 'manual' (Manual inputs) vs 'db' (Calcolo automatico da DB ingredienti)
+  const [modalMode, setModalMode] = useState('manual');
   const [customIngredients, setCustomIngredients] = useState([]);
   const [showDbPickerIndex, setShowDbPickerIndex] = useState(null);
   const [dbSearch, setDbSearch] = useState('');
@@ -316,7 +318,11 @@ function RecipeModal({ recipe, onSave, onClose }) {
     handleChange('ingredients', newIngs);
   };
   const removeIngredient = (index) => {
-    handleChange('ingredients', formData.ingredients.filter((_, i) => i !== index));
+    const updated = formData.ingredients.filter((_, i) => i !== index);
+    handleChange('ingredients', updated);
+    if (modalMode === 'db') {
+      recalculateFromIngredients(updated, formData.servings);
+    }
   };
 
   const selectDbIngredient = (ingIndex, dbIng) => {
@@ -334,6 +340,9 @@ function RecipeModal({ recipe, onSave, onClose }) {
     handleChange('ingredients', newIngs);
     setShowDbPickerIndex(null);
     setDbSearch('');
+    if (modalMode === 'db') {
+      recalculateFromIngredients(newIngs, formData.servings);
+    }
   };
 
   const handleAmountChange = (index, val) => {
@@ -342,13 +351,16 @@ function RecipeModal({ recipe, onSave, onClose }) {
     ing.rawAmount = val;
     ing.quantity = val ? `${val} ${ing.unit || 'g'}` : '';
     handleChange('ingredients', newIngs);
+    if (modalMode === 'db') {
+      recalculateFromIngredients(newIngs, formData.servings);
+    }
   };
 
-  const calculateTotalNutritionFromDb = () => {
+  const recalculateFromIngredients = (ingredientsList, currentServings) => {
     let totalCal = 0, totalProt = 0, totalCarb = 0, totalFat = 0;
-    let foundAny = false;
+    const mult = parseInt(currentServings) || 1;
 
-    formData.ingredients.forEach(ing => {
+    (ingredientsList || formData.ingredients).forEach(ing => {
       let dbItem = null;
       if (ing.linkedIngId) {
         dbItem = customIngredients.find(x => x.id === ing.linkedIngId);
@@ -357,7 +369,6 @@ function RecipeModal({ recipe, onSave, onClose }) {
       }
 
       if (dbItem && dbItem.per100) {
-        foundAny = true;
         const amount = parseFloat(ing.rawAmount) || parseFloat(ing.quantity) || 0;
         const ratio = amount / 100;
         totalCal += (dbItem.per100.calories || 0) * ratio;
@@ -367,12 +378,6 @@ function RecipeModal({ recipe, onSave, onClose }) {
       }
     });
 
-    if (!foundAny) {
-      alert("Nessun ingrediente con valori nutrizionali trovato dal tuo database.");
-      return;
-    }
-
-    const mult = parseInt(formData.servings) || 1;
     setFormData(p => ({
       ...p,
       nutrition: {
@@ -384,14 +389,75 @@ function RecipeModal({ recipe, onSave, onClose }) {
     }));
   };
 
-  const servings = parseInt(formData.servings) || 1;
+  const handleServingsChange = (newServings) => {
+    handleChange('servings', newServings);
+    if (modalMode === 'db') {
+      recalculateFromIngredients(formData.ingredients, newServings);
+    }
+  };
 
+  const handleSwitchMode = (mode) => {
+    setModalMode(mode);
+    if (mode === 'db') {
+      recalculateFromIngredients(formData.ingredients, formData.servings);
+    }
+  };
+
+  const servings = parseInt(formData.servings) || 1;
   const filteredDb = customIngredients.filter(x => x.name.toLowerCase().includes(dbSearch.toLowerCase()));
 
   return (
     <div className="recipe-modal-overlay">
       <div className="recipe-modal day-content">
         <h2 className="day-name">{formData.id ? 'Modifica Ricetta' : 'Nuova Ricetta'}</h2>
+
+        {/* Modalità Inserimento Toggle */}
+        <div style={{
+          display: 'flex',
+          background: 'rgba(255,255,255,0.05)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '4px',
+          marginBottom: '16px',
+          gap: '4px',
+          border: '1px solid var(--border)'
+        }}>
+          <button
+            type="button"
+            style={{
+              flex: 1,
+              padding: '8px 12px',
+              borderRadius: 'var(--radius-sm)',
+              border: 'none',
+              background: modalMode === 'manual' ? 'var(--accent)' : 'transparent',
+              color: modalMode === 'manual' ? '#1a1816' : 'var(--text-secondary)',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onClick={() => handleSwitchMode('manual')}
+          >
+            ✍️ Inserimento Manuale
+          </button>
+          <button
+            type="button"
+            style={{
+              flex: 1,
+              padding: '8px 12px',
+              borderRadius: 'var(--radius-sm)',
+              border: 'none',
+              background: modalMode === 'db' ? 'var(--accent)' : 'transparent',
+              color: modalMode === 'db' ? '#1a1816' : 'var(--text-secondary)',
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onClick={() => handleSwitchMode('db')}
+          >
+            🥗 Da Raccolta Ingredienti
+          </button>
+        </div>
         
         <div className="modal-scroll">
           <label>Nome Ricetta</label>
@@ -431,13 +497,13 @@ function RecipeModal({ recipe, onSave, onClose }) {
           <div className="servings-row mb-3">
             <button 
               className="servings-btn" 
-              onClick={() => handleChange('servings', Math.max(1, servings - 1))}
+              onClick={() => handleServingsChange(Math.max(1, servings - 1))}
               disabled={servings <= 1}
             >−</button>
             <span className="servings-value">{servings} {servings === 1 ? 'persona' : 'persone'}</span>
             <button 
               className="servings-btn" 
-              onClick={() => handleChange('servings', servings + 1)}
+              onClick={() => handleServingsChange(servings + 1)}
             >+</button>
           </div>
           {servings > 1 && (
@@ -447,24 +513,44 @@ function RecipeModal({ recipe, onSave, onClose }) {
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <label>Valori Nutrizionali {servings > 1 ? `(totali per ${servings} persone)` : '(per 1 persona)'}</label>
-            {customIngredients.length > 0 && (
-              <button 
-                type="button"
-                className="btn btn--edit small-py" 
-                style={{ fontSize: '0.75rem', padding: '4px 8px', marginBottom: '4px' }}
-                onClick={calculateTotalNutritionFromDb}
-                title="Calcola i valori totali summing gli ingredienti dal DB"
-              >
-                🧮 Calcola da Ingredienti
-              </button>
-            )}
+            <label>
+              Valori Nutrizionali {servings > 1 ? `(totali per ${servings} persone)` : '(per 1 persona)'}
+              {modalMode === 'db' && <span style={{ fontSize: '0.75rem', color: 'var(--accent)', marginLeft: '6px' }}>(Calcolati in automatico ⚡)</span>}
+            </label>
           </div>
           <div className="nutri-inputs mb-3">
-            <input type="number" placeholder="Kcal" className="input-description" value={formData.nutrition.calories} onChange={e => handleNutriChange('calories', e.target.value)} />
-            <input type="number" placeholder="Prot (g)" className="input-description" value={formData.nutrition.protein} onChange={e => handleNutriChange('protein', e.target.value)} />
-            <input type="number" placeholder="Carb (g)" className="input-description" value={formData.nutrition.carbs} onChange={e => handleNutriChange('carbs', e.target.value)} />
-            <input type="number" placeholder="Gras (g)" className="input-description" value={formData.nutrition.fat} onChange={e => handleNutriChange('fat', e.target.value)} />
+            <input 
+              type="number" 
+              placeholder="Kcal" 
+              className="input-description" 
+              value={formData.nutrition.calories} 
+              onChange={e => handleNutriChange('calories', e.target.value)}
+              disabled={modalMode === 'db'} 
+            />
+            <input 
+              type="number" 
+              placeholder="Prot (g)" 
+              className="input-description" 
+              value={formData.nutrition.protein} 
+              onChange={e => handleNutriChange('protein', e.target.value)} 
+              disabled={modalMode === 'db'}
+            />
+            <input 
+              type="number" 
+              placeholder="Carb (g)" 
+              className="input-description" 
+              value={formData.nutrition.carbs} 
+              onChange={e => handleNutriChange('carbs', e.target.value)} 
+              disabled={modalMode === 'db'}
+            />
+            <input 
+              type="number" 
+              placeholder="Gras (g)" 
+              className="input-description" 
+              value={formData.nutrition.fat} 
+              onChange={e => handleNutriChange('fat', e.target.value)} 
+              disabled={modalMode === 'db'}
+            />
           </div>
           {servings > 1 && (
             <div className="nutri-per-person mb-3">
