@@ -193,9 +193,9 @@ Usa numeri con al massimo 1 decimale.`;
           <label>Unità di misura</label>
           <div style={{ display: 'flex', gap: '6px', marginBottom: '20px' }}>
             {[
-              { val: 'g',    label: '⚖️ Grammi (g)' },
-              { val: 'ml',   label: '💧 Millilitri (ml)' },
-              { val: 'unit', label: '🥚 Pezzo (1 uovo/mela)' },
+              { val: 'g',    label: 'Grammi (g)' },
+              { val: 'ml',   label: 'Millilitri (ml)' },
+              { val: 'unit', label: 'Pezzo' },
             ].map(u => (
               <button
                 key={u.val}
@@ -221,7 +221,7 @@ Usa numeri con al massimo 1 decimale.`;
               onClick={handleAiEstimate}
               disabled={aiLoading}
             >
-              {aiLoading ? '⏳ Stima in corso…' : '⚡ Stima con IA'}
+              {aiLoading ? '⏳ Stima in corso…' : 'Stima con IA'}
             </button>
           </div>
 
