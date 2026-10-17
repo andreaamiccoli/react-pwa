@@ -1555,11 +1555,358 @@ body {
   letter-spacing: -0.5px;
 }
 
-@keyframes pulse {
-  0% { transform: scale(0.95); opacity: 0.8; }
-  50% { transform: scale(1.05); opacity: 1; }
-  100% { transform: scale(0.95); opacity: 0.8; }
+/* ============================================
+   YAZIO DIARY THEME & COMPONENTS
+   ============================================ */
+
+/* 1. Selettore Data Yazio */
+.yazio-date-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  margin-bottom: 16px;
 }
+
+.yazio-date-nav-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.yazio-date-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(1.05);
+}
+
+.yazio-date-center {
+  text-align: center;
+}
+
+.yazio-date-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.yazio-date-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+/* 2. Riepilogo Donut Card Yazio */
+.yazio-summary-card {
+  background: #23201d;
+  border-radius: 28px;
+  padding: 20px;
+  border: 1px solid rgba(255, 235, 210, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  margin-bottom: 20px;
+}
+
+.yazio-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.yazio-summary-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.yazio-summary-action {
+  background: transparent;
+  border: none;
+  color: #00d2c4;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.yazio-summary-action:hover {
+  text-decoration: underline;
+}
+
+/* Donut & Stats Row */
+.yazio-donut-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  margin-bottom: 22px;
+}
+
+.yazio-stat-col {
+  text-align: center;
+  min-width: 70px;
+}
+
+.yazio-stat-num {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.3px;
+}
+
+.yazio-stat-label {
+  font-size: 0.8rem;
+  color: #8c837a;
+  margin-top: 2px;
+}
+
+.yazio-donut-wrap {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.yazio-donut-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.yazio-donut-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 10;
+}
+
+.yazio-donut-progress {
+  fill: none;
+  stroke: #00d2c4; /* Ciano caratteristico Yazio */
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.yazio-donut-center {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.yazio-donut-val {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+}
+
+.yazio-donut-sub {
+  font-size: 0.75rem;
+  color: #8c837a;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* Barre Macronutrienti Yazio */
+.yazio-macros-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 16px;
+}
+
+.yazio-macro-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.yazio-macro-name {
+  font-size: 0.78rem;
+  color: #a69b91;
+  font-weight: 500;
+}
+
+.yazio-macro-bar-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.yazio-macro-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+.yazio-bar--carbs {
+  background: #00d2c4; /* Ciano */
+}
+
+.yazio-bar--protein {
+  background: #38bdf8; /* Azzurro */
+}
+
+.yazio-bar--fat {
+  background: #fbbf24; /* Giallo/Ambra */
+}
+
+.yazio-macro-val {
+  font-size: 0.75rem;
+  color: #ffffff;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* 3. Card Pasto Yazio (Stile Bianco con angoli molto arrotondati) */
+.yazio-meal-card {
+  background: #ffffff;
+  color: #1a1816;
+  border-radius: 26px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.yazio-meal-card--editing {
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
+}
+
+.yazio-meal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.yazio-meal-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.yazio-meal-label {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1a1816;
+}
+
+.yazio-meal-cals {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #78716c;
+}
+
+.yazio-add-btn {
+  background: #f3f0ea;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  color: #1a1816;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 1.4rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.yazio-add-btn:hover {
+  background: #00d2c4;
+  color: #ffffff;
+  transform: scale(1.08);
+}
+
+/* Elementi all'interno della card pasto */
+.yazio-meal-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  padding-top: 10px;
+}
+
+.yazio-meal-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.yazio-meal-item-row:hover {
+  background: #f5f3ee;
+}
+
+.yazio-item-name {
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: #292524;
+}
+
+.yazio-item-arrow {
+  color: #a8a29e;
+  font-size: 1.1rem;
+}
+
+.yazio-meal-empty-hint {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: #a8a29e;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.yazio-meal-macro-pills {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.75rem;
+  color: #78716c;
+  font-weight: 600;
+}
+
+.yazio-meal-macro-pills span {
+  background: #f3f0ea;
+  padding: 3px 8px;
+  border-radius: 99px;
+}
+
+.yazio-meal-edit-body {
+  margin-top: 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding-top: 12px;
+}
+
 
 
 

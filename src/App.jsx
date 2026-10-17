@@ -8,6 +8,9 @@ import BackupPage from './BackupPage.jsx'
 import ToastContainer, { showToast } from './Toast.jsx'
 import ConfirmModal from './ConfirmModal.jsx'
 import RoomModal from './RoomModal.jsx'
+import YazioSummaryCard from './YazioSummaryCard.jsx'
+import YazioDateSelector from './YazioDateSelector.jsx'
+import YazioMealCard from './YazioMealCard.jsx'
 import { syncRoomState, subscribeToRoom } from './services/roomSync.js'
 import { isFirebaseConfigured } from './services/firebase.js'
 import { getActiveApiKey, getAiCache, setAiCache } from './aiUtils.js'
@@ -683,263 +686,125 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
       )}
 
       {view === 'calendar' && (
-        <>
-          {/* ===== MENU GIORNI ===== */}
-          <nav className="days-nav">
-            <div className="days-scroll">
-              {DAYS.map(day => (
-                <button
-                  key={day}
-                  className={`day-btn ${selectedDay === day ? 'day-btn--active' : ''}`}
-                  onClick={() => handleSelectDay(day)}
-                >
-                  {day}
-                </button>
-              ))}
-            </div>
-          </nav>
+        <main className="day-content" style={{ paddingTop: '12px' }}>
+          {/* ===== 1. SELETTORE DATA YAZIO ===== */}
+          <YazioDateSelector 
+            days={DAYS}
+            selectedDay={selectedDay}
+            onSelectDay={handleSelectDay}
+          />
 
-          {/* ===== CONTENUTO DEL GIORNO ===== */}
-          <main className="day-content">
-            <div className="day-hero">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <h2 className="day-name">{selectedDay}</h2>
-                {editingSection !== 'header' && (
-                  <button className="nav-btn action-icon" onClick={() => handleEditSection('header')}>✏️</button>
-                )}
-              </div>
-              
-              {editingSection === 'header' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
-                  <textarea
-                    className="input-description"
-                    placeholder="Aggiungi una nota per questo giorno..."
-                    value={tempData.description}
-                    onChange={e => handleChange('description', e.target.value)}
-                    rows={2}
-                  />
-                  <label className="goal-input-label" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <span>Obiettivo Calorie Giorno:</span>
-                    <input 
-                      type="number" 
-                      placeholder="Imposta kcal" 
-                      className="input-description mini-input"
-                      style={{ width: '100px' }}
-                      value={tempData.targetCalories || ''}
-                      onChange={e => handleChange('targetCalories', e.target.value)}
-                    />
-                  </label>
-                  <div className="action-bar" style={{ marginTop: '8px' }}>
-                    <button className="btn btn--cancel" onClick={handleCancelSection}>Annulla</button>
-                    <button className="btn btn--save" onClick={handleSaveSection}>✓ Salva Intestazione</button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <p className="day-description">
-                    {currentData.description || <span className="placeholder-text">Nessuna nota per questo giorno</span>}
-                  </p>
-                  
-                  <div className="goals-summary mt-3">
-                    <div className="goal-metric">
-                      <span className="metric-label">Calorie Attuali:</span>
-                      <span className="metric-value">{dayMacros.calories} / {currentData.targetCalories || '—'} kcal</span>
-                    </div>
-                    
-                    <div className="progress-container mt-2">
-                      <div className="progress-bar" style={{ width: `${dayProgressPct}%` }}></div>
-                    </div>
+          {/* ===== 2. GRAFICO AD ANELLO DONUT CARD YAZIO ===== */}
+          <YazioSummaryCard 
+            dayMacros={dayMacros}
+            targetCalories={currentData.targetCalories}
+            onOpenTargets={handleOpenTargets}
+          />
 
-                    <div className="macronutrients-grid mt-3">
-                      <div className="macro-item">🥩 <strong>{dayMacros.protein}g</strong><br/><span>Proteine</span></div>
-                      <div className="macro-item">🍞 <strong>{dayMacros.carbs}g</strong><br/><span>Carboidrati</span></div>
-                      <div className="macro-item">🥑 <strong>{dayMacros.fat}g</strong><br/><span>Grassi</span></div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Tasto Imposta Target Pasti */}
-              <div style={{ marginTop: '20px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
-                <button className="btn btn--edit" onClick={handleOpenTargets} style={{ width: '100%' }}>
-                  Imposta Target Pasti
-                </button>
+          {/* Sezione Note Giornaliere Opzionali / Editing Note */}
+          {editingSection === 'header' ? (
+            <div className="day-hero mb-3" style={{ padding: '16px' }}>
+              <textarea
+                className="input-description"
+                placeholder="Aggiungi una nota per questo giorno..."
+                value={tempData.description}
+                onChange={e => handleChange('description', e.target.value)}
+                rows={2}
+              />
+              <label className="goal-input-label" style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px' }}>
+                <span>Obiettivo Calorie Giorno:</span>
+                <input 
+                  type="number" 
+                  placeholder="es. 2000" 
+                  className="input-description mini-input"
+                  style={{ width: '100px' }}
+                  value={tempData.targetCalories || ''}
+                  onChange={e => handleChange('targetCalories', e.target.value)}
+                />
+              </label>
+              <div className="action-bar" style={{ marginTop: '10px' }}>
+                <button type="button" className="btn btn--cancel" onClick={handleCancelSection}>Annulla</button>
+                <button type="button" className="btn btn--save" onClick={handleSaveSection}>✓ Salva Note</button>
               </div>
             </div>
+          ) : (
+            currentData.description && (
+              <div 
+                className="meal-card mb-3" 
+                style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                onClick={() => handleEditSection('header')}
+                title="Tocca per modificare le note"
+              >
+                <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>📝 {currentData.description}</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--accent)' }}>Modifica</span>
+              </div>
+            )
+          )}
 
-            {/* ===== LISTA DEI PASTI ===== */}
-            <div className="meals-list">
-              {MEALS.map(meal => {
-                const mealData = (editingSection === 'meal-' + meal.key ? tempData : currentData).meals[meal.key] || { text: '', targetCalories: '', recipes: [] }
-                const mealMacros = getMealMacros(mealData)
-                const targetMealCal = mealData.targetCalories ? parseFloat(mealData.targetCalories) : 0
-                const mealProgressPct = targetMealCal > 0 ? Math.min(100, (mealMacros.calories / targetMealCal) * 100) : 0
+          {/* ===== 3. SEZIONI PASTO YAZIO (Card Bianche Arrotondate con +) ===== */}
+          <div className="meals-list">
+            {MEALS.map(meal => {
+              const mealData = (editingSection === 'meal-' + meal.key ? tempData : currentData).meals[meal.key] || { text: '', targetCalories: '', recipes: [] };
+              const mealMacros = getMealMacros(mealData);
+              const isThisMealEditing = editingSection === 'meal-' + meal.key;
+
+              return (
+                <YazioMealCard 
+                  key={meal.key}
+                  meal={meal}
+                  mealData={mealData}
+                  mealMacros={mealMacros}
+                  isEditing={isThisMealEditing}
+                  onStartEdit={() => handleEditSection('meal-' + meal.key)}
+                  onAddRecipe={() => setSelectingMealKey(meal.key)}
+                  onAskAi={() => setAiMealKey(meal.key)}
+                  onUpdateServings={(recipeId, delta) => handleUpdateRecipeServings(meal.key, recipeId, delta)}
+                  onRemoveRecipe={(recipeId) => handleRemoveRecipe(meal.key, recipeId)}
+                  onTextChange={(val) => handleMealChangeText(meal.key, val)}
+                  onSave={handleSaveSection}
+                  onCancel={handleCancelSection}
+                  onViewRecipe={handleViewRecipe}
+                />
+              );
+            })}
+          </div>
+
+          {/* Targets Modal */}
+          {isSettingTargets && (
+            <div className="bottom-sheet-overlay" onClick={() => setIsSettingTargets(false)}>
+              <div className="bottom-sheet" onClick={e => e.stopPropagation()}>
+                <h3 className="confirm-title text-center mt-2 mb-4">Imposta Target Settimanali</h3>
+                <p className="text-secondary text-center mb-4" style={{ fontSize: '0.9rem' }}>
+                  Definisci le calorie per ogni pasto.
+                </p>
                 
-                const isThisMealEditing = editingSection === 'meal-' + meal.key;
-
-                return (
-                  <div key={meal.key} className="meal-card" style={{ position: 'relative' }}>
-                    <div className="meal-header" style={{ justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className="meal-label">{meal.label}</span>
-                      </div>
-                      
-                      {/* Obiettivo pasto (Top Right) */}
-                      <div className="meal-goal-indicator">
-                        {mealData.targetCalories && <span className="text-secondary text-sm" style={{ fontWeight: '600' }}>{mealData.targetCalories} kcal</span>}
-                      </div>
-                    </div>
-
-                    {/* Riepilogo nutrizionale del singolo pasto */}
-                    <div className="meal-nutri-summary mt-2">
-                      <div className="meal-nutri-cals">
-                        <strong>{mealMacros.calories} kcal</strong>
-                      </div>
-                      {targetMealCal > 0 && (
-                        <div className="progress-container mini-progress mt-1">
-                          <div className="progress-bar" style={{ width: `${mealProgressPct}%` }}></div>
-                        </div>
-                      )}
-                      <div className="meal-nutri-macros mt-1">
-                        <span>🥩 {mealMacros.protein}g</span>
-                        <span>🍞 {mealMacros.carbs}g</span>
-                        <span>🥑 {mealMacros.fat}g</span>
-                      </div>
-                    </div>
-
-                    {isThisMealEditing ? (
-                      <div className="meal-edit-container mt-3">
-                        {/* Elenco ricette associate con pulsante di rimozione e regolatore porzioni */}
-                        {(mealData.recipes || []).length > 0 && (
-                          <div className="attached-recipes-list mb-2">
-                            {mealData.recipes.map(rRef => {
-                              const servings = parseInt(rRef.servings) || 1
-                              const isAi = rRef.type === 'ai_estimate'
-                              return (
-                                <div key={rRef.id} className="attached-recipe-badge flex-wrap-mobile">
-                                  <span className="badge-icon">{isAi ? '🤖' : '📖'}</span>
-                                  <span className="badge-text">{rRef.name}</span>
-                                  
-                                  {/* Regolatore Porzioni in Linea */}
-                                  <div className="badge-servings-control">
-                                    <button 
-                                      className="badge-servings-btn"
-                                      onClick={() => handleUpdateRecipeServings(meal.key, rRef.id, -1)}
-                                    >−</button>
-                                    <span className="badge-servings-val">{servings} p.</span>
-                                    <button 
-                                      className="badge-servings-btn"
-                                      onClick={() => handleUpdateRecipeServings(meal.key, rRef.id, 1)}
-                                    >+</button>
-                                  </div>
-
-                                  <button className="badge-close ml-1" onClick={() => handleRemoveRecipe(meal.key, rRef.id)}>✕</button>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button className="btn btn--edit small-py mb-2 flex-1" onClick={() => setSelectingMealKey(meal.key)}>
-                            Da Ricettario
-                          </button>
-                          <button className="btn btn--edit small-py mb-2 flex-1" style={{ borderColor: 'var(--accent-light)' }} onClick={() => setAiMealKey(meal.key)}>
-                            Chiedi a IA
-                          </button>
-                        </div>
-                        
-                        <textarea
-                          className="input-meal"
-                          placeholder={`Note manuali per ${meal.label.toLowerCase()}...`}
-                          value={mealData.text || ''}
-                          onChange={e => handleMealChangeText(meal.key, e.target.value)}
-                          rows={2}
-                        />
-
-                        <div className="action-bar" style={{ marginTop: '16px' }}>
-                          <button className="btn btn--cancel" onClick={handleCancelSection}>Annulla</button>
-                          <button className="btn btn--save" onClick={handleSaveSection}>✓ Salva Pasto</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="meal-content mt-3" style={{ paddingBottom: '24px' }}>
-                        {/* Mostra emoji 📖 o 🤖, nome e porzioni assegnate */}
-                        {(mealData.recipes || []).length > 0 && (
-                          <div className="recipe-links-container mb-2">
-                            {mealData.recipes.map(rRef => {
-                              const servings = parseInt(rRef.servings) || 1
-                              const isAi = rRef.type === 'ai_estimate'
-                              return (
-                                <span 
-                                  key={rRef.id} 
-                                  className="recipe-link-inline-emoji"
-                                  onClick={() => handleViewRecipe(isAi ? rRef : rRef.id, servings)}
-                                  title={rRef.name}
-                                >
-                                  {isAi ? '🤖' : '📖'} <strong>{rRef.name}</strong> {servings > 1 && <span className="inline-servings-badge">({servings} porz.)</span>}
-                                </span>
-                              )
-                            })}
-                          </div>
-                        )}
-                        {mealData.text ? (
-                          <p className="meal-text-note">{mealData.text}</p>
-                        ) : (
-                          (!mealData.recipes || mealData.recipes.length === 0) && <span className="placeholder-text">Non ancora pianificato</span>
-                        )}
-                        
-                        {/* Pulsante Modifica Singolo Pasto in basso a destra */}
-                        {!editingSection && (
-                          <button 
-                            className="nav-btn action-icon" 
-                            style={{ position: 'absolute', bottom: '12px', right: '12px', opacity: 0.7 }}
-                            onClick={() => handleEditSection('meal-' + meal.key)}
-                          >✏️</button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Targets Modal */}
-            {isSettingTargets && (
-              <div className="bottom-sheet-overlay" onClick={() => setIsSettingTargets(false)}>
-                <div className="bottom-sheet" onClick={e => e.stopPropagation()}>
-                  <h3 className="confirm-title text-center mt-2 mb-4">Imposta Target Settimanali</h3>
-                  <p className="text-secondary text-center mb-4" style={{ fontSize: '0.9rem' }}>
-                    Definisci le calorie per ogni pasto.
-                  </p>
-                  
-                  <div className="meal-edit-container">
-                    {MEALS.map(m => (
-                      <label key={m.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-input)', padding: '10px 16px', borderRadius: 'var(--radius-sm)' }}>
-                        <span style={{ fontWeight: '500' }}>{m.label}</span>
-                        <input 
-                          type="number"
-                          placeholder="kcal"
-                          className="input-description mini-input"
-                          style={{ width: '80px', margin: 0, padding: '4px 8px' }}
-                          value={tempTargets[m.key]}
-                          onChange={e => setTempTargets(prev => ({ ...prev, [m.key]: e.target.value }))}
-                        />
-                      </label>
-                    ))}
-                  </div>
-
-                  <div className="action-bar mt-4">
-                    <button className="btn btn--cancel" onClick={() => setIsSettingTargets(false)}>Annulla</button>
-                    <button className="btn btn--save" onClick={handleSaveTargets}>✓ Salva Giorno</button>
-                  </div>
-                  <button className="btn btn--edit mt-3" style={{ width: '100%' }} onClick={handleApplyTargetsToWeek}>
-                    Applica a tutta la settimana
-                  </button>
+                <div className="meal-edit-container">
+                  {MEALS.map(m => (
+                    <label key={m.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-input)', padding: '10px 16px', borderRadius: 'var(--radius-sm)' }}>
+                      <span style={{ fontWeight: '500' }}>{m.label}</span>
+                      <input 
+                        type="number" 
+                        placeholder="kcal" 
+                        className="input-description mini-input"
+                        style={{ width: '80px', margin: 0, padding: '4px 8px' }}
+                        value={tempTargets[m.key]}
+                        onChange={e => setTempTargets(prev => ({ ...prev, [m.key]: e.target.value }))}
+                      />
+                    </label>
+                  ))}
                 </div>
+
+                <div className="action-bar mt-4">
+                  <button className="btn btn--cancel" onClick={() => setIsSettingTargets(false)}>Annulla</button>
+                  <button className="btn btn--save" onClick={handleSaveTargets}>✓ Salva Giorno</button>
+                </div>
+                <button className="btn btn--edit mt-3" style={{ width: '100%' }} onClick={handleApplyTargetsToWeek}>
+                  Applica a tutta la settimana
+                </button>
               </div>
-            )}
-          </main>
-        </>
+            </div>
+          )}
+        </main>
       )}
 
       {/* ===== MODALS ===== */}
