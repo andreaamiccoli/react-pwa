@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import ConfirmModal from './ConfirmModal.jsx';
 import { showToast } from './Toast.jsx';
 
-export default function BackupPage() {
+export default function BackupPage({ roomCode, onOpenRoomModal }) {
   const fileInputRef = useRef(null);
   const [confirmRestoreData, setConfirmRestoreData] = useState(null);
   const [apiKey, setApiKey] = useState(() => localStorage.getItem('geminiApiKey') || '');
@@ -98,8 +98,32 @@ export default function BackupPage() {
       <div className="day-hero mb-4">
         <h2 className="day-name">Backup & Impostazioni</h2>
         <p className="day-description">
-          Salva una copia dei dati o configura l'integrazione con l'Intelligenza Artificiale per l'importazione automatica delle ricette.
+          Salva una copia dei dati, gestisci la tua stanza condivisa multi-dispositivo o configura l'Intelligenza Artificiale.
         </p>
+      </div>
+
+      {/* Sezione Stanza Condivisa */}
+      <div className="meal-card recipe-card mb-4" style={{ border: '1px solid var(--accent-border)' }}>
+        <h3 className="recipe-name text-accent mb-2">🏠 Stanza Condivisa (Cloud Sync)</h3>
+        <p className="recipe-meta mb-3">
+          Tutti i dispositivi connessi a questo codice condividono le modifiche in tempo reale.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Codice attuale:</span>
+            <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--text-primary)', letterSpacing: '1px' }}>
+              {roomCode || 'Nessuna stanza'}
+            </div>
+          </div>
+          <button 
+            type="button" 
+            className="btn btn--edit" 
+            onClick={onOpenRoomModal}
+            style={{ flex: '0 0 auto', padding: '8px 16px', fontSize: '0.88rem' }}
+          >
+            🔄 Cambia Stanza
+          </button>
+        </div>
       </div>
 
       <div className="meal-card recipe-card mb-4">

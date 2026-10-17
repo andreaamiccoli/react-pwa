@@ -46,8 +46,17 @@ const scaleQuantity = (quantityStr, targetServings, baseServings) => {
   });
 };
 
-export default function RecipePage() {
-  const [recipes, setRecipes] = useState(loadRecipes);
+export default function RecipePage({ recipes: propRecipes, setRecipes: propSetRecipes, onSyncState }) {
+  const [localRecipes, setLocalRecipes] = useState(loadRecipes);
+  
+  const recipes = propRecipes !== undefined ? propRecipes : localRecipes;
+  const setRecipes = (updater) => {
+    if (propSetRecipes) {
+      propSetRecipes(updater);
+    } else {
+      setLocalRecipes(updater);
+    }
+  };
 
   // Vista attiva: null = griglia categorie, altrimenti chiave categoria
   const [selectedCategory, setSelectedCategory] = useState(null);

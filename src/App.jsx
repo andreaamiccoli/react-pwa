@@ -7,6 +7,9 @@ import PresetsPage from './PresetsPage.jsx'
 import BackupPage from './BackupPage.jsx'
 import ToastContainer, { showToast } from './Toast.jsx'
 import ConfirmModal from './ConfirmModal.jsx'
+import RoomModal from './RoomModal.jsx'
+import { syncRoomState, subscribeToRoom } from './services/roomSync.js'
+import { isFirebaseConfigured } from './services/firebase.js'
 import { getActiveApiKey, getAiCache, setAiCache } from './aiUtils.js'
 
 // --- Dati di default per la prima apertura ---
@@ -107,13 +110,35 @@ const loadPresets = () => {
   return []
 }
 
+const loadRecipesData = () => {
+  try {
+    const saved = localStorage.getItem('recipeData')
+    if (saved) return JSON.parse(saved)
+  } catch(e) {}
+  return []
+}
+
+const loadIngredientsData = () => {
+  try {
+    const saved = localStorage.getItem('ingredientsData')
+    if (saved) return JSON.parse(saved)
+  } catch(e) {}
+  return []
+}
+
 export default function App() {
   const [view, setView]               = useState('calendar') // calendar | recipes | presets
   const [drawerOpen, setDrawerOpen]   = useState(false)
   
+  // Stanza Condivisa
+  const [roomCode, setRoomCode]       = useState(() => localStorage.getItem('app_room_code') || '')
+  const [isRoomModalOpen, setIsRoomModalOpen] = useState(false)
+
   const [selectedDay, setSelectedDay] = useState(DAYS[0])
   const [dietData, setDietData]       = useState(loadData)
   const [presets, setPresets]         = useState(loadPresets)
+  const [recipes, setRecipes]         = useState(loadRecipesData)
+  const [ingredients, setIngredients] = useState(loadIngredientsData)
   
   const [editingSection, setEditingSection] = useState(null)
   const [tempData, setTempData]       = useState(null)
@@ -126,7 +151,70 @@ export default function App() {
   const [selectingMealKey, setSelectingMealKey] = useState(null)
   const [viewingRecipe, setViewingRecipe] = useState(null) // ID della ricetta o oggetto ricetta temporanea AI
   const [targetServings, setTargetServings] = useState(1)  // Porzioni selezionate nel Bottom Sheet
-  const [allRecipes, setAllRecipes]   = useState([])
+  const [allRecipes, setAllRecipes]   = useState(recipes)
+
+  // Sincronizza allRecipes con recipes
+  useEffect(() => {
+    setAllRecipes(recipes)
+  }, [recipes])
+
+  // Listener real-time per la stanza condivisa
+  useEffect(() => {
+    if (!roomCode) return;
+
+    const unsubscribe = subscribeToRoom(roomCode, (remoteData) => {
+      if (!remoteData) return;
+      if (remoteData.dietData) {
+        setDietData(normalizeMeals(remoteData.dietData));
+      }
+      if (remoteData.recipeData) {
+        setRecipes(remoteData.recipeData);
+      }
+      if (remoteData.ingredientsData) {
+        setIngredients(remoteData.ingredientsData);
+      }
+      if (remoteData.presetsData) {
+        setPresets(remoteData.presetsData);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [roomCode]);
+
+  // Gestione cambio o impostazione stanza
+  const handleConfirmRoomCode = (newCode) => {
+    localStorage.setItem('app_room_code', newCode);
+    setRoomCode(newCode);
+    setIsRoomModalOpen(false);
+    showToast(`Connesso alla stanza ${newCode}!`, 'success');
+  };
+
+  // Helper sincronizzazione modifiche
+  const updateDietDataAndSync = (newDietData) => {
+    setDietData(newDietData);
+    syncRoomState(roomCode, { dietData: newDietData });
+  };
+
+  const updatePresetsAndSync = (newPresets) => {
+    setPresets(newPresets);
+    syncRoomState(roomCode, { presetsData: newPresets });
+  };
+
+  const updateRecipesAndSync = (updater) => {
+    setRecipes(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      syncRoomState(roomCode, { recipeData: next });
+      return next;
+    });
+  };
+
+  const updateIngredientsAndSync = (updater) => {
+    setIngredients(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      syncRoomState(roomCode, { ingredientsData: next });
+      return next;
+    });
+  };
 
   // Stato per la stima AI del singolo pasto
   const [aiMealKey, setAiMealKey] = useState(null) // pasto per cui si vuole usare la stima AI (null = chiuso)
@@ -201,7 +289,8 @@ export default function App() {
   }
 
   const handleSaveSection = () => {
-    setDietData(prev => ({ ...prev, [selectedDay]: tempData }))
+    const updated = { ...dietData, [selectedDay]: tempData };
+    updateDietDataAndSync(updated);
     setEditingSection(null)
     setTempData(null)
     showToast('Salvataggio completato!', 'success')
@@ -223,39 +312,35 @@ export default function App() {
   };
 
   const handleSaveTargets = () => {
-    setDietData(prev => {
-      const newData = { ...prev };
-      const currentDay = { ...newData[selectedDay] };
-      currentDay.meals = { ...currentDay.meals };
-      MEALS.forEach(m => {
-        currentDay.meals[m.key] = {
-          ...currentDay.meals[m.key],
-          targetCalories: tempTargets[m.key]
-        };
-      });
-      newData[selectedDay] = currentDay;
-      return newData;
+    const newData = { ...dietData };
+    const currentDay = { ...newData[selectedDay] };
+    currentDay.meals = { ...currentDay.meals };
+    MEALS.forEach(m => {
+      currentDay.meals[m.key] = {
+        ...currentDay.meals[m.key],
+        targetCalories: tempTargets[m.key]
+      };
     });
+    newData[selectedDay] = currentDay;
+    updateDietDataAndSync(newData);
     setIsSettingTargets(false);
     showToast('Target salvati per ' + selectedDay, 'success');
   };
 
   const handleApplyTargetsToWeek = () => {
-    setDietData(prev => {
-      const newData = { ...prev };
-      DAYS.forEach(day => {
-        const d = { ...newData[day] };
-        d.meals = { ...d.meals };
-        MEALS.forEach(m => {
-          d.meals[m.key] = {
-            ...d.meals[m.key],
-            targetCalories: tempTargets[m.key]
-          };
-        });
-        newData[day] = d;
+    const newData = { ...dietData };
+    DAYS.forEach(day => {
+      const d = { ...newData[day] };
+      d.meals = { ...d.meals };
+      MEALS.forEach(m => {
+        d.meals[m.key] = {
+          ...d.meals[m.key],
+          targetCalories: tempTargets[m.key]
+        };
       });
-      return newData;
+      newData[day] = d;
     });
+    updateDietDataAndSync(newData);
     setIsSettingTargets(false);
     showToast('Target applicati a tutta la settimana!', 'success');
   };
@@ -567,21 +652,34 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
       {/* ===== VIEWS ===== */}
       {view === 'presets' && (
         <PresetsPage 
-          presets={presets} setPresets={setPresets} 
-          currentDietData={dietData} onLoadPreset={handleLoadPresetReq} 
+          presets={presets} 
+          setPresets={updatePresetsAndSync} 
+          currentDietData={dietData} 
+          onLoadPreset={handleLoadPresetReq} 
         />
       )}
 
       {view === 'backup' && (
-        <BackupPage />
+        <BackupPage 
+          roomCode={roomCode}
+          onOpenRoomModal={() => setIsRoomModalOpen(true)}
+        />
       )}
 
       {view === 'recipes' && (
-        <RecipePage />
+        <RecipePage 
+          recipes={recipes}
+          setRecipes={updateRecipesAndSync}
+          onSyncState={(newRecipes) => syncRoomState(roomCode, { recipeData: newRecipes })}
+        />
       )}
 
       {view === 'ingredients' && (
-        <IngredientsPage />
+        <IngredientsPage 
+          ingredients={ingredients}
+          setIngredients={updateIngredientsAndSync}
+          onSyncState={(newIngredients) => syncRoomState(roomCode, { ingredientsData: newIngredients })}
+        />
       )}
 
       {view === 'calendar' && (
@@ -1032,6 +1130,15 @@ Tutti i valori del campo nutrition devono essere numerici o stringa vuota se imp
           </div>
         </div>
       )}
+
+      {/* Modal Bloccante Stanza Condivisa */}
+      <RoomModal 
+        isOpen={!roomCode || isRoomModalOpen}
+        currentCode={roomCode}
+        isDismissable={Boolean(roomCode)}
+        onConfirm={handleConfirmRoomCode}
+        onClose={() => setIsRoomModalOpen(false)}
+      />
 
     </div>
   )

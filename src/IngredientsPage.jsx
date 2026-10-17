@@ -11,8 +11,18 @@ const loadIngredients = () => {
   return [];
 };
 
-export default function IngredientsPage() {
-  const [ingredients, setIngredients] = useState(loadIngredients);
+export default function IngredientsPage({ ingredients: propIngredients, setIngredients: propSetIngredients, onSyncState }) {
+  const [localIngredients, setLocalIngredients] = useState(loadIngredients);
+
+  const ingredients = propIngredients !== undefined ? propIngredients : localIngredients;
+  const setIngredients = (updater) => {
+    if (propSetIngredients) {
+      propSetIngredients(updater);
+    } else {
+      setLocalIngredients(updater);
+    }
+  };
+
   const [search, setSearch] = useState('');
   const [editingIngredient, setEditingIngredient] = useState(null);
 
